@@ -136,6 +136,12 @@ async function boot() {
   if (!liff.isLoggedIn()) { liff.login(); return; }
   const v0 = new URLSearchParams(location.search).get("v");   // リッチメニューからの直行（?v=book 等）
   if (["home","book","weight","train","chat"].includes(v0)) view = v0;
+  const link = new URLSearchParams(location.search).get("link");   // スタッフのLINE連携（アプリ設定タブから）
+  if (link) {
+    try { const r = await api("link_staff", { code: link }); alert(`スタッフ「${r.staff_name}」のLINE通知を有効にしました。この画面は閉じて大丈夫です。`); }
+    catch (e) { alert(e.message); }
+    history.replaceState(null, "", location.pathname);
+  }
   const paid = new URLSearchParams(location.search).get("paid");
   if (paid === "1") setTimeout(() => alert("ご購入ありがとうございます。残り回数に反映されました。反映されていない場合は数秒後に画面を引き下げて更新してください。"), 800);
   await load();
