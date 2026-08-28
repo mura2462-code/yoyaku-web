@@ -106,6 +106,7 @@
   <button data-v="home"><span class="ic">🏠</span>ホーム</button>
   <button data-v="book"><span class="ic">📅</span>予約する</button>
   <button data-v="weight"><span class="ic">⚖️</span>体重</button>
+  <button data-v="train"><span class="ic">🏋️</span>トレ記録</button>
   <button data-v="chat"><span class="ic">💬</span>連絡<span id="unread" class="badge hide"></span></button>
 </nav>
 <script>
@@ -134,7 +135,7 @@ async function boot() {
   await liff.init({ liffId: LIFF_ID });
   if (!liff.isLoggedIn()) { liff.login(); return; }
   const v0 = new URLSearchParams(location.search).get("v");   // リッチメニューからの直行（?v=book 等）
-  if (["home","book","weight","chat"].includes(v0)) view = v0;
+  if (["home","book","weight","train","chat"].includes(v0)) view = v0;
   await load();
 }
 async function load() {
@@ -152,7 +153,7 @@ document.querySelectorAll("nav button").forEach(b => b.onclick = () => { view = 
 
 function render() {
   document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b.dataset.v === view));
-  ({ home: renderHome, book: renderBook, weight: renderWeight, chat: renderChat })[view]();
+  ({ home: renderHome, book: renderBook, weight: renderWeight, train: renderTrain, chat: renderChat })[view]();
 }
 
 function renderRegister(lineName) {
@@ -243,6 +244,25 @@ function renderWeight() {
     try { await api("weight", { date: $("#wd").value, weight: v, fat: $("#wf").value || null }); await load(); view = "weight"; render(); } catch (e) { alert(e.message); }
   };
   drawChart(w);
+}
+function renderTrain() {
+  const ws = S.workouts || [], ex = Object.fromEntries((S.exercises || []).map(e => [e.id, e]));
+  const lbl = (st, u) => st.seconds != null ? `${st.seconds}秒` : (u === "kg" && st.weight != null ? `${Number(st.weight)}kg×${st.reps ?? 0}` : `${st.reps ?? 0}回`);
+  const bests = (S.bests || []).filter(b => b.est_1rm || b.max_weight).sort((a, b) => (b.est_1rm || 0) - (a.est_1rm || 0));
+  const d = s => s.slice(5).replace("-", "/");
+  app.innerHTML = `
+  <div class="card"><h2>自己ベスト<wbr>（推定1RM）</h2>
+    ${bests.map(b => `<div class="row"><span>${esc(b.exercise_name)}</span><span><b>${Math.round(b.est_1rm || b.max_weight)}</b> kg <span class="sub">${d(b.last_done_on)}</span></span></div>`).join("") || `<div class="sub">記録がたまると表示されます</div>`}
+    ${bests.length ? `<div class="sub" style="margin-top:8px">1RM＝1回だけ挙げられる最大重量の推定値（重量×(1＋回数÷30)）。</div>` : ""}
+  </div>
+  <div class="card"><h2>トレーニング履歴</h2>
+    ${ws.map(w => {
+      const g = []; (w.workout_set || []).sort((a, b) => a.seq - b.seq || a.set_no - b.set_no).forEach(st => { const k = st.exercise_id; let e = g.find(x => x.k === k); if (!e) g.push(e = { k, s: [] }); e.s.push(st); });
+      return `<div style="padding:10px 0;border-bottom:1px solid var(--line)"><div><b>${w.done_on.replace(/-/g, "/")}</b></div>
+        ${g.map(e => `<div class="row" style="padding:3px 0"><span>${esc(ex<wbr>[e.k]?<wbr>.name |<wbr>| "種目")}</span><span class="sub">${e.s.map(st => lbl(st, ex[e.k]?.unit)).join(" / ")}</span></div>`).join("")}
+        ${w.note ? `<div class="sub" style="margin-top:4px">${esc(w.note)}</div>` : ""}</div>`;
+    }).join("") || `<div class="sub">まだ記録はありません。セッション後にトレーナーが入力します。</div>`}
+  </div>`;
 }
 function drawChart(w) {
   const c = $("#wc"); if (!c || w.length < 2) return; const ctx = c.getContext("2d");
