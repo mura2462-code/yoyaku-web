@@ -173,26 +173,26 @@ function renderHome() {
   const expired = t.filter(x => x.expired && x.remaining > 0 && !x.unlimited);
   const ms = S.memberships || [];
   app.innerHTML = `
-  ${ms.length ? `<div class="card"><h2>会員プラン</h2>${ms.map(m => `<div class="row"><span>${esc(m.product_name)}</span><span class="sub">${m.count === 0 ? "月 無制限" : "月" + m.count + "回"}${m.rollover ? "・<wbr>繰越あり" : ""}${m.status === "paused" ? "・<wbr>休会中" : "・<wbr>次回更新 " + m.next_issue_on.slice(5).replace("-", "/<wbr>")}</span></div>`).join("")}</div>` : ""}
+  ${ms.length ? `<div class="card"><h2>会員プラン</h2>${ms.map(m => `<div class="row"><span>${esc(m.product_name)}</span><span class="sub">${m.count === 0 ? "月 無制限" : "月" + m.count + "回"}${m.rollover ? "・繰越あり" : ""}${m.status === "paused" ? "・休会中" : "・次回更新 " + m.next_issue_on.slice(5).replace("-", "/")}</span></div>`).join("")}</div>` : ""}
   <div class="card"><h2>回数券</h2>
     <div class="big">${unlimited ? "無制限" : "残り " + remain + " 回"}</div>
-    ${t.map(x => `<div class="row"${x.expired ? ' style="opacity:.55"' : ""}><span>${esc(x.name)}</span><span class="sub">${x.unlimited ? (x.expired ? "期限切れ・" : "無制限・") + (x.expires_at ? x.expires_at.slice(5).replace("-", "/") + "まで" : "") : x.expired ? "期限切れ（未使用" + x.remaining + "回）・" + x.expires_at.slice(5).replace("-", "/") : "残" + x.remaining + "/" + x.total_count + (x.expires_at ? "・" + x.expires_at.slice(5).replace("-", "/") + "まで" : "")}</span></div>`).join("") || `<div class="sub">登録された回数券はありません</div>`}
+    ${t.map(x =>}`<div class="row"${x.expired ? ' style="opacity:.55"' : ""}><span>${esc(x.name)}</span><span class="sub">${x.unlimited ? (x.expired ? "期限切れ・" : "無制限・") + (x.expires_at ? x.expires_at.slice(5).replace("-", "/") + "まで" : "") : x.expired ? "期限切れ（未使用" + x.remaining + "回）・" + x.expires_at.slice(5).replace("-", "/") : "残" + x.remaining + "/" + x.total_count + (x.expires_at ? "・" + x.expires_at.slice(5).replace("-", "/") + "まで" : "")}</span></div>`).join("") || `<div class="sub">登録された回数券はありません</div>`}
     ${expired.length ? `<div class="sub" style="margin-top:8px">有効期限を過ぎた回数券は使えません。継続はチャットでご相談ください。</div>` : ""}
   </div>
   ${(S.products || []).length ? `<div class="card"><h2>回数券を購入</h2>
-    ${S.products.map(x => `<div class="row"><div><div><b>${esc(x.name)}</b> <span class="sub">${x.count}回${x.valid_days ? "・<wbr>" + x.valid_days + "日間<wbr>有効" : ""}</span></div>${x.description ? `<div class="sub">${esc(x.description)}</div>` : ""}</div>
+    ${S.products.map(x => `<div class="row"><div><div><b>${esc(x.name)}</b> <span class="sub">${x.count}回${x.valid_days ? "・" + x.valid_days + "日間有効" : ""}</span></div>${x.description ?}`<div class="sub">${esc(x.description)}</div>` : ""}</div>
       <button class="ghost" data-buy="${x.id}">¥${Number(x.price).toLocaleString()}</button></div>`).join("")}
     <div class="sub" style="margin-top:8px">クレジットカードで決済します。購入後すぐに残り回数に反映されます。</div></div>` : ""}
   <div class="card"><h2>次回以降の<wbr>予約</h2>
-    ${up.map(b => `<div class="row"><div><div><b>${fmtDT(b.start_at)}</b></div><div class="sub">${b.duration_minutes}分 ${esc(b.menu)}</div></div>
+    ${up.map(b =>}`<div class="row"><div><div><b>${fmtDT(b.start_at)}</b></div><div class="sub">${b.duration_minutes}分 ${esc(b.menu)}</div></div>
       <div><button class="ghost" data-gcal="${b.id}" title="Googleカレンダーに追加">📅</button> <button class="ghost" data-re="${b.id}">変更</button> <button class="danger" data-cx="${b.id}">取消</button></div></div>`).join("") || `<div class="sub">予約はありません</div>`}
     <div style="margin-top:10px"><button id="gobook">予約する</button></div>
   </div>
-  ${S.calendar && S.calendar.ics_url ? `<div class="card"><h2>カレンダー連携</h2>
+  ${S.calendar && S.calendar.ics_url ?}`<div class="card"><h2>カレンダー連携</h2>
     <div class="sub">お使いのカレンダーに予約を自動で反映します。変更・キャンセルも追いかけます（反映まで数時間かかることがあります）。</div>
     <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap"><button class="ghost" id="cal-google">Googleカレンダー</button><button class="ghost" id="cal-apple">iPhoneカレンダー</button><button class="ghost" id="cal-copy">URLをコピー</button></div>
   </div>` : ""}
-  <div class="card"><h2>キャンセル規定</h2><div class="sub">開始 ${S.store.cancel_free_until_hours} 時間前まで<wbr>無料。<wbr>${S.store.late_cancel_consumes ? "それ以降の<wbr>キャンセルは<wbr>回数券1回分を<wbr>消化します。<wbr>" : ""}日時変更も<wbr>同じ<wbr>期限です。</div></div>`;
+  <div class="card"><h2>キャンセル規定</h2><div class="sub">開始 ${S.store.cancel_free_until_hours} 時間前まで<wbr>無料。${S.store.late_cancel_consumes ? "それ以降のキャンセルは回数券1回分を消化します。" : ""}日時変更も<wbr>同じ<wbr>期限です。</div></div>`;
   $("#gobook").onclick = () => { view = "book"; render(); };
   const ext = url => liff.isInClient() ? liff.openWindow({ url, external: true }) : window.open(url, "_blank");
   app.querySelectorAll("[data-gcal]").forEach(b => b.onclick = () => {
@@ -231,13 +231,13 @@ async function renderBook(rescheduleId = null) {
   const reB = rescheduleId ? S.upcoming.find(x => x.id === rescheduleId) : null;
   bookState = { date: bookState.date || today(), duration: reB ? reB.duration_minutes : S.store.default_duration, slot: null, re: rescheduleId };
   const max = new Date(Date.now() + S.store.booking_open_days * 864e5).toISOString().slice(0, 10);
-  app.innerHTML = `<div class="card"><h2>${reB ? "日時変更：" + fmtDT(reB.start_at) + " →" : "予約する<wbr>"}</h2>
+  app.innerHTML = `<div class="card"><h2>${reB ? "日時変更：" + fmtDT(reB.start_at) + " →" : "予約する"}</h2>
     <label>日付</label><input type="date" id="bd" value="${bookState.date}" min="${today()}" max="${max}">
-    ${reB ? "" : `<label>時間</label><select id="bdur">${[30,45,60,90].map(m => `<option value="${m}" ${m===bookState.duration?"selected":""}>${m}分</option>`).join("")}</select>
+    ${reB ? "" :}`<label>時間</label><select id="bdur">${[30,45,60,90].map(m => `<option value="${m}" ${m===bookState.duration?"selected":""}>${m}分</option>`).join("")}</select>
     <label>メニュー</label><select id="bmenu"><option>パーソナル</option><option>体験</option><option>カウンセリング</option></select>`}
     <label>空き時間</label><div class="slots" id="slots"><div class="sub">読み込み中…</div></div>
-    ${reB ? "" : `<label>ご要望（任意）</label><textarea id="bnote" rows="2"></textarea>`}
-    <div style="margin-top:14px"><button id="bgo" disabled>${reB ? "この<wbr>日時に<wbr>変更する<wbr>" : "この<wbr>日時で<wbr>予約する<wbr>"}</button></div></div>`;
+    ${reB ? "" :}`<label>ご要望（任意）</label><textarea id="bnote" rows="2"></textarea>`}
+    <div style="margin-top:14px"><button id="bgo" disabled>${reB ? "この日時に変更する" : "この日時で予約する"}</button></div></div>`;
   const loadSlots = async () => {
     bookState.date = $("#bd").value; bookState.slot = null; $("#bgo").disabled = true;
     if (!reB) bookState.duration = Number($("#bdur").value);
@@ -269,7 +269,7 @@ function renderWeight() {
     <label>体脂肪率<wbr>（%・<wbr>任意）</label><input id="wf" inputmode="decimal">
     <div style="margin-top:14px"><button id="wgo">記録する</button></div></div>
     <div class="card"><h2>推移<wbr>（直近90日）</h2><canvas id="wc" width="600" height="320"></canvas>
-    ${w.slice(-7).reverse().map(x => `<div class="row"><span>${x.measured_on.slice(5).replace("-", "/")}</span><span><b>${x.weight_kg}</b> kg ${x.body_fat_pct ? `<span class="sub">${x.body_fat_pct}%</span>` : ""}</span></div>`).join("") || `<div class="sub">まだ記録がありません</div>`}</div>`;
+    ${w.slice(-7).reverse().map(x =>}`<div class="row"><span>${x.measured_on.slice(5).replace("-", "/")}</span><span><b>${x.weight_kg}</b> kg ${x.body_fat_pct ? `<span class="sub">${x.body_fat_pct}%</span>` : ""}</span></div>`).join("") || `<div class="sub">まだ記録がありません</div>`}</div>`;
   $("#wgo").onclick = async () => {
     const v = parseFloat($("#wk").value); if (!(v > 20 && v < 300)) return alert("体重を確認してください");
     try { await api("weight", { date: $("#wd").value, weight: v, fat: $("#wf").value || null }); await load(); view = "weight"; render(); } catch (e) { alert(e.message); }
@@ -283,14 +283,14 @@ function renderTrain() {
   const d = s => s.slice(5).replace("-", "/");
   app.innerHTML = `
   <div class="card"><h2>自己ベスト<wbr>（推定1RM）</h2>
-    ${bests.map(b => `<div class="row"><span>${esc(b.exercise_name)}</span><span><b>${Math.round(b.est_1rm || b.max_weight)}</b> kg <span class="sub">${d(b.last_done_on)}</span></span></div>`).join("") || `<div class="sub">記録がたまると表示されます</div>`}
+    ${bests.map(b =>}`<div class="row"><span>${esc(b.exercise_name)}</span><span><b>${Math.round(b.est_1rm || b.max_weight)}</b> kg <span class="sub">${d(b.last_done_on)}</span></span></div>`).join("") || `<div class="sub">記録がたまると表示されます</div>`}
     ${bests.length ? `<div class="sub" style="margin-top:8px">1RM＝1回だけ挙げられる最大重量の推定値（重量×(1＋回数÷30)）。</div>` : ""}
   </div>
   <div class="card"><h2>トレーニング履歴</h2>
     ${ws.map(w => {
       const g = []; (w.workout_set || []).sort((a, b) => a.seq - b.seq || a.set_no - b.set_no).forEach(st => { const k = st.exercise_id; let e = g.find(x => x.k === k); if (!e) g.push(e = { k, s: [] }); e.s.push(st); });
-      return `<div style="padding:10px 0;border-bottom:1px solid var(--line)"><div><b>${w.done_on.replace(/-/g, "/")}</b></div>
-        ${g.map(e => `<div class="row" style="padding:3px 0"><span>${esc(ex<wbr>[e.k]?<wbr>.name |<wbr>| "種目")}</span><span class="sub">${e.s.map(st => lbl(st, ex[e.k]?.unit)).join(" / ")}</span></div>`).join("")}
+      return}`<div style="padding:10px 0;border-bottom:1px solid var(--line)"><div><b>${w.done_on.replace(/-/g, "/")}</b></div>
+        ${g.map(e => `<div class="row" style="padding:3px 0"><span>${esc(ex[e.k]?.name || "種目")}</span><span class="sub">${e.s.map(st => lbl(st, ex[e.k]?.unit)).join(" / ")}</span></div>`).join("")}
         ${w.note ? `<div class="sub" style="margin-top:4px">${esc(w.note)}</div>` : ""}</div>`;
     }).join("") || `<div class="sub">まだ記録はありません。セッション後にトレーナーが入力します。</div>`}
   </div>`;
