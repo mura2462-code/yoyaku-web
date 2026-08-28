@@ -133,6 +133,8 @@ const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(
 async function boot() {
   await liff.init({ liffId: LIFF_ID });
   if (!liff.isLoggedIn()) { liff.login(); return; }
+  const v0 = new URLSearchParams(location.search).get("v");   // リッチメニューからの直行（?v=book 等）
+  if (["home","book","weight","chat"].includes(v0)) view = v0;
   await load();
 }
 async function load() {
