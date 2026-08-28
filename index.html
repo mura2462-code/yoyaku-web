@@ -163,11 +163,13 @@ function renderRegister(lineName) {
 
 function renderHome() {
   const t = S.tickets || [], up = S.upcoming || [];
-  const remain = t.reduce((a, x) => a + Math.max(0, x.remaining), 0);
+  const remain = t.reduce((a, x) => a + (x.usable ?? Math.max(0, x.remaining)), 0);
+  const expired = t.filter(x => x.expired && x.remaining > 0);
   app.innerHTML = `
   <div class="card"><h2>回数券</h2>
     <div class="big">残り ${remain} 回</div>
-    ${t.map(x => `<div class="row"><span>${esc(x.name)}</span><span class="sub">残${x.remaining}/${x.total_count}${x.expires_at ? "・" + x.expires_at.slice(5).replace("-", "/") + "まで" : ""}</span></div>`).join("") || `<div class="sub">登録された回数券はありません</div>`}
+    ${t.map(x => `<div class="row"${x.expired ? ' style="opacity:.55"' : ""}><span>${esc(x.name)}</span><span class="sub">${x.expired ? "期限切れ（未使用" + x.remaining + "回）・" + x.expires_at.slice(5).replace("-", "/") : "残" + x.remaining + "/" + x.total_count + (x.expires_at ? "・" + x.expires_at.slice(5).replace("-", "/") + "まで" : "")}</span></div>`).join("") || `<div class="sub">登録された回数券はありません</div>`}
+    ${expired.length ? `<div class="sub" style="margin-top:8px">有効期限を過ぎた回数券は使えません。継続はチャットでご相談ください。</div>` : ""}
   </div>
   <div class="card"><h2>次回以降の<wbr>予約</h2>
     ${up.map(b => `<div class="row"><div><div><b>${fmtDT(b.start_at)}</b></div><div class="sub">${b.duration_minutes}分 ${esc(b.menu)}</div></div>
