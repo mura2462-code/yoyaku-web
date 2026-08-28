@@ -168,12 +168,15 @@ function renderRegister(lineName) {
 
 function renderHome() {
   const t = S.tickets || [], up = S.upcoming || [];
-  const remain = t.reduce((a, x) => a + (x.usable ?? Math.max(0, x.remaining)), 0);
-  const expired = t.filter(x => x.expired && x.remaining > 0);
+  const unlimited = t.some(x => x.unlimited && !x.expired);
+  const remain = t.filter(x => !x.unlimited).reduce((a, x) => a + (x.usable ?? Math.max(0, x.remaining)), 0);
+  const expired = t.filter(x => x.expired && x.remaining > 0 && !x.unlimited);
+  const ms = S.memberships || [];
   app.innerHTML = `
+  ${ms.length ? `<div class="card"><h2>会員プラン</h2>${ms.map(m => `<div class="row"><span>${esc(m.product_name)}</span><span class="sub">${m.count === 0 ? "月 無制限" : "月" + m.count + "回"}${m.rollover ? "・<wbr>繰越あり" : ""}${m.status === "paused" ? "・<wbr>休会中" : "・<wbr>次回更新 " + m.next_issue_on.slice(5).replace("-", "/<wbr>")}</span></div>`).join("")}</div>` : ""}
   <div class="card"><h2>回数券</h2>
-    <div class="big">残り ${remain} 回</div>
-    ${t.map(x => `<div class="row"${x.expired ? ' style="opacity:.55"' : ""}><span>${esc(x.name)}</span><span class="sub">${x.expired ? "期限切れ（未使用" + x.remaining + "回）・" + x.expires_at.slice(5).replace("-", "/") : "残" + x.remaining + "/" + x.total_count + (x.expires_at ? "・" + x.expires_at.slice(5).replace("-", "/") + "まで" : "")}</span></div>`).join("") || `<div class="sub">登録された回数券はありません</div>`}
+    <div class="big">${unlimited ? "無制限" : "残り " + remain + " 回"}</div>
+    ${t.map(x => `<div class="row"${x.expired ? ' style="opacity:.55"' : ""}><span>${esc(x.name)}</span><span class="sub">${x.unlimited ? (x.expired ? "期限切れ・" : "無制限・") + (x.expires_at ? x.expires_at.slice(5).replace("-", "/") + "まで" : "") : x.expired ? "期限切れ（未使用" + x.remaining + "回）・" + x.expires_at.slice(5).replace("-", "/") : "残" + x.remaining + "/" + x.total_count + (x.expires_at ? "・" + x.expires_at.slice(5).replace("-", "/") + "まで" : "")}</span></div>`).join("") || `<div class="sub">登録された回数券はありません</div>`}
     ${expired.length ? `<div class="sub" style="margin-top:8px">有効期限を過ぎた回数券は使えません。継続はチャットでご相談ください。</div>` : ""}
   </div>
   ${(S.products || []).length ? `<div class="card"><h2>回数券を購入</h2>
@@ -182,11 +185,28 @@ function renderHome() {
     <div class="sub" style="margin-top:8px">クレジットカードで決済します。購入後すぐに残り回数に反映されます。</div></div>` : ""}
   <div class="card"><h2>次回以降の<wbr>予約</h2>
     ${up.map(b => `<div class="row"><div><div><b>${fmtDT(b.start_at)}</b></div><div class="sub">${b.duration_minutes}分 ${esc(b.menu)}</div></div>
-      <div><button class="ghost" data-re="${b.id}">変更</button> <button class="danger" data-cx="${b.id}">取消</button></div></div>`).join("") || `<div class="sub">予約はありません</div>`}
+      <div><button class="ghost" data-gcal="${b.id}" title="Googleカレンダーに追加">📅</button> <button class="ghost" data-re="${b.id}">変更</button> <button class="danger" data-cx="${b.id}">取消</button></div></div>`).join("") || `<div class="sub">予約はありません</div>`}
     <div style="margin-top:10px"><button id="gobook">予約する</button></div>
   </div>
+  ${S.calendar && S.calendar.ics_url ? `<div class="card"><h2>カレンダー連携</h2>
+    <div class="sub">お使いのカレンダーに予約を自動で反映します。変更・キャンセルも追いかけます（反映まで数時間かかることがあります）。</div>
+    <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap"><button class="ghost" id="cal-google">Googleカレンダー</button><button class="ghost" id="cal-apple">iPhoneカレンダー</button><button class="ghost" id="cal-copy">URLをコピー</button></div>
+  </div>` : ""}
   <div class="card"><h2>キャンセル規定</h2><div class="sub">開始 ${S.store.cancel_free_until_hours} 時間前まで<wbr>無料。<wbr>${S.store.late_cancel_consumes ? "それ以降の<wbr>キャンセルは<wbr>回数券1回分を<wbr>消化します。<wbr>" : ""}日時変更も<wbr>同じ<wbr>期限です。</div></div>`;
   $("#gobook").onclick = () => { view = "book"; render(); };
+  const ext = url => liff.isInClient() ? liff.openWindow({ url, external: true }) : window.open(url, "_blank");
+  app.querySelectorAll("[data-gcal]").forEach(b => b.onclick = () => {
+    const x = up.find(u => u.id === b.dataset.gcal); if (!x) return;
+    const u = d => new Date(d).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+    const end = new Date(new Date(x.start_at).getTime() + x.duration_minutes * 6e4);
+    ext("https://calendar.google.com/calendar/render?action=TEMPLATE&text=" + encodeURIComponent(S.store.name + (x.menu ? " " + x.menu : "")) + "&dates=" + u(x.start_at) + "/" + u(end) + "&details=" + encodeURIComponent("予約の変更・キャンセルはLINEから"));
+  });
+  if (S.calendar && S.calendar.ics_url) {
+    const webcal = S.calendar.ics_url.replace(/^https?:/, "webcal:");
+    $("#cal-google").onclick = () => ext("https://calendar.google.com/calendar/r?cid=" + encodeURIComponent(webcal));
+    $("#cal-apple").onclick = () => ext(webcal);
+    $("#cal-copy").onclick = async () => { try { await navigator.clipboard.writeText(S.calendar.ics_url); alert("コピーしました。カレンダーアプリの「URLで追加」に貼り付けてください"); } catch { prompt("このURLをコピー", S.calendar.ics_url); } };
+  }
   document.querySelectorAll("[data-buy]").forEach(b => b.onclick = async () => {
     b.disabled = true;
     try { const r = await api("checkout", { product_id: b.dataset.buy }); location.href = r.url; }
