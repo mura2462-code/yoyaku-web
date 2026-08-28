@@ -136,6 +136,8 @@ async function boot() {
   if (!liff.isLoggedIn()) { liff.login(); return; }
   const v0 = new URLSearchParams(location.search).get("v");   // リッチメニューからの直行（?v=book 等）
   if (["home","book","weight","train","chat"].includes(v0)) view = v0;
+  const paid = new URLSearchParams(location.search).get("paid");
+  if (paid === "1") setTimeout(() => alert("ご購入ありがとうございます。残り回数に反映されました。反映されていない場合は数秒後に画面を引き下げて更新してください。"), 800);
   await load();
 }
 async function load() {
@@ -174,6 +176,10 @@ function renderHome() {
     ${t.map(x => `<div class="row"${x.expired ? ' style="opacity:.55"' : ""}><span>${esc(x.name)}</span><span class="sub">${x.expired ? "期限切れ（未使用" + x.remaining + "回）・" + x.expires_at.slice(5).replace("-", "/") : "残" + x.remaining + "/" + x.total_count + (x.expires_at ? "・" + x.expires_at.slice(5).replace("-", "/") + "まで" : "")}</span></div>`).join("") || `<div class="sub">登録された回数券はありません</div>`}
     ${expired.length ? `<div class="sub" style="margin-top:8px">有効期限を過ぎた回数券は使えません。継続はチャットでご相談ください。</div>` : ""}
   </div>
+  ${(S.products || []).length ? `<div class="card"><h2>回数券を購入</h2>
+    ${S.products.map(x => `<div class="row"><div><div><b>${esc(x.name)}</b> <span class="sub">${x.count}回${x.valid_days ? "・<wbr>" + x.valid_days + "日間<wbr>有効" : ""}</span></div>${x.description ? `<div class="sub">${esc(x.description)}</div>` : ""}</div>
+      <button class="ghost" data-buy="${x.id}">¥${Number(x.price).toLocaleString()}</button></div>`).join("")}
+    <div class="sub" style="margin-top:8px">クレジットカードで決済します。購入後すぐに残り回数に反映されます。</div></div>` : ""}
   <div class="card"><h2>次回以降の<wbr>予約</h2>
     ${up.map(b => `<div class="row"><div><div><b>${fmtDT(b.start_at)}</b></div><div class="sub">${b.duration_minutes}分 ${esc(b.menu)}</div></div>
       <div><button class="ghost" data-re="${b.id}">変更</button> <button class="danger" data-cx="${b.id}">取消</button></div></div>`).join("") || `<div class="sub">予約はありません</div>`}
@@ -181,6 +187,11 @@ function renderHome() {
   </div>
   <div class="card"><h2>キャンセル規定</h2><div class="sub">開始 ${S.store.cancel_free_until_hours} 時間前まで<wbr>無料。<wbr>${S.store.late_cancel_consumes ? "それ以降の<wbr>キャンセルは<wbr>回数券1回分を<wbr>消化します。<wbr>" : ""}日時変更も<wbr>同じ<wbr>期限です。</div></div>`;
   $("#gobook").onclick = () => { view = "book"; render(); };
+  document.querySelectorAll("[data-buy]").forEach(b => b.onclick = async () => {
+    b.disabled = true;
+    try { const r = await api("checkout", { product_id: b.dataset.buy }); location.href = r.url; }
+    catch (e) { alert(e.message); b.disabled = false; }
+  });
   app.querySelectorAll("[data-cx]").forEach(b => b.onclick = () => cancelBooking(b.dataset.cx));
   app.querySelectorAll("[data-re]").forEach(b => b.onclick = () => { view = "book"; renderBook(b.dataset.re); });
 }
