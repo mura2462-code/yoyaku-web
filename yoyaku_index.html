@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>予約</title>
+<script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<style>
+/* == jp-typo:start == 日本語改行の基盤（jp_typo/typo.css が正本。直接編集しない） */
+/* ============================================================
+   日本語改行の基盤スタイル（全案件共通・正本）
+   /Users/mura2462/daily-content-auto/jp_typo/typo.css
+   これを編集したら jp-wrap --sync-all で各案件へ再配布する。
+
+   前提となる実測事実（MDN browser-compat-data / 2026-08-20 確認）:
+     word-break:auto-phrase … Chrome119+ のみ。Safari は preview、Firefox 非対応。
+                              しかも lang="ja" が要る。→ iPhone では効かない。
+     text-wrap:pretty       … Chrome130+ / Safari26+ / Firefox 非対応
+     text-wrap:balance      … Chrome130+ / Safari17.5+ / Firefox124+
+                       … Chrome1 / Safari4 / Firefox1 = 全ブラウザ確実
+   よって「文節で折り返す」実体は （budoux が本文に埋め込む）が担い、
+   CSS は「wbr 以外の位置で切らせない」ことを担当する二段構えにする。
+   ============================================================ */
+
+/* 折り返し規則。詳細度0（:where）で全要素に敷く。
+   要素を列挙する方式だと div 直下のテキストが漏れて、そこだけ改行規則が変わる。
+   word-break 系は継承プロパティだが、途中の要素に直接指定があると継承が切れるため、
+   html への一括指定ではなく全要素へ当てる必要がある。
+   詳細度0なので、既存のページ側指定は一切上書きされない＝後方互換。 */
+:where(body, body *){
+  line-break: strict;        /* 行頭の句読点・閉じ括弧・小書き仮名を禁止（禁則） */
+  word-break: keep-all;      /* 日本語を任意位置で切らせない＝wbr の位置だけで折る */
+  overflow-wrap: break-word; /* 安全網。ただし anywhere と違い「文節が行に収まらない時」だけ切る。
+                                anywhere は改行機会を同格に扱うため貪欲に詰めて文節を割ってしまう */
+  text-wrap: pretty;         /* 対応環境では最終行1文字の孤立（рагged）を回避 */
+}
+
+/* 見出し・キャッチは行の長さを揃える（対応環境のみ。非対応でも劣化しない） */
+:where(h1,h2,h3,.lead,.catch,.hero h1,.jp-balance){
+  text-wrap: balance;
+}
+
+/* word-break:auto-phrase はあえて使わない。
+   Chrome 以外では無効なうえ、Chrome でも lang="ja" が無いと normal（＝どこでも切る）に
+   落ちる。ブラウザによって改行位置が変わる状態を作らないため、判断は budoux が埋めた
+    に一本化する。 */
+
+/* 行長（measure）。日本語は1行あたり全角35〜45字が可読のピーク。
+   PC幅で1行が伸びきるのを防ぐ。opt-in（.jp-measure）＋本文既定の両方を用意。 */
+.jp-measure{ max-width: 40em; }
+.jp-measure-center{ max-width: 40em; margin-inline: auto; }
+
+/* デバイス別の明示改行。使うのは「意味の切れ目をどうしても固定したい」時だけ。
+   .br-sp = スマホでのみ改行 / .br-tb = タブレットのみ / .br-pc = PCのみ
+   .sp-br / .pc-br は既存ページの旧クラス名との互換 */
+.br-sp,.sp-br,.br-tb,.br-pc,.pc-br{ display:none; }
+@media (max-width: 599px){  .br-sp,.sp-br{ display:inline; } }
+@media (min-width: 600px) and (max-width: 1023px){ .br-tb{ display:inline; } }
+@media (min-width: 1024px){ .br-pc,.pc-br{ display:inline; } }
+
+/* 逆に「その幅では改行させたくない」ときの打ち消し */
+@media (max-width: 599px){ .nobr-sp{ display:none; } }
+@media (min-width: 1024px){ .nobr-pc{ display:none; } }
+
+/* 電話番号のように途中で切られると意味が壊れるものは切らせない */
+.jp-nowrap,:where(a[href^="tel:"],.tel,.phone,.no-break){ white-space: nowrap; }
+
+/* 逆にメールアドレス・URL は長いので、どこで切ってでも溢れさせない */
+:where(a[href^="mailto:"],a[href^="http"],.jp-break,code,kbd,samp){ overflow-wrap: anywhere; }
+
+/* 数字＋単位・記号の分断防止（例: 500 件, 8:00〜20:00） */
+.jp-unit{ white-space: nowrap; }
+
+/* == jp-typo:end == */
+
+  :root{--bg:#f6f7f9;--card:#fff;--ink:#1b1f24;--sub:#6b7280;--line:#e5e7eb;--acc:#0f766e;--accw:#e6f4f2;--warn:#b45309;--warnbg:#fef3c7;--bad:#b91c1c}
+  *{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;font-size:16px;line-height:1.55;-webkit-text-size-adjust:100%}
+  header{position:sticky;top:0;background:var(--card);border-bottom:1px solid var(--line);padding:12px 16px;font-weight:700;display:flex;justify-content:space-between;align-items:center;z-index:2}
+  main{padding:14px 14px 90px;max-width:560px;margin:0 auto}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+  h2{font-size:15px;margin:0 0 8px;color:var(--sub);font-weight:600}
+  .row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--line)}.row:first-of-type{border-top:0}
+  .big{font-size:22px;font-weight:700}.sub{color:var(--sub);font-size:13px}
+  button{font:inherit;border:0;border-radius:10px;padding:11px 14px;background:var(--acc);color:#fff;font-weight:600;cursor:pointer}
+  button.ghost{background:var(--accw);color:var(--acc)}button.danger{background:#fee2e2;color:var(--bad)}button:disabled{opacity:.45}
+  input,select,textarea{font:inherit;width:100%;padding:11px;border:1px solid var(--line);border-radius:10px;background:#fff}
+  label{display:block;font-size:13px;color:var(--sub);margin:10px 0 4px}
+  nav{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--line);display:flex;padding-bottom:env(safe-area-inset-bottom)}
+  nav button{flex:1;background:none;color:var(--sub);border-radius:0;padding:10px 0 8px;font-size:11px;font-weight:600}nav button.on{color:var(--acc)}
+  nav .ic{font-size:20px;display:block}
+  .slots{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.slots button{background:var(--accw);color:var(--acc);padding:10px 0}.slots button.sel{background:var(--acc);color:#fff}
+  .notice{background:var(--warnbg);color:var(--warn);border-radius:10px;padding:10px;font-size:13px;margin:8px 0}
+  .chat{display:flex;flex-direction:column;gap:6px}.msg{max-width:80%;padding:9px 12px;border-radius:14px;font-size:15px;white-space:pre-wrap;word-break:break-word}
+  .msg.c{align-self:flex-end;background:var(--acc);color:#fff;border-bottom-right-radius:4px}.msg.s{align-self:flex-start;background:#fff;border:1px solid var(--line);border-bottom-left-radius:4px}
+  .msg time{display:block;font-size:10px;opacity:.7;margin-top:2px}
+  .sendbar{display:flex;gap:8px;margin-top:10px}.sendbar textarea{flex:1;min-height:44px;max-height:120px}
+  .badge{background:var(--bad);color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px}
+  .hide{display:none}.center{text-align:center;padding:30px 0;color:var(--sub)}
+  canvas{width:100%;height:160px}
+</style>
+</head>
+<body>
+<header><span id="storeName">予約</span><span class="sub" id="custName"></span></header>
+<main id="app"><div class="center">読み込み中…</div></main>
+<nav id="nav" class="hide">
+  <button data-v="home"><span class="ic">🏠</span>ホーム</button>
+  <button data-v="book"><span class="ic">📅</span>予約する</button>
+  <button data-v="weight"><span class="ic">⚖️</span>体重</button>
+  <button data-v="chat"><span class="ic">💬</span>連絡<span id="unread" class="badge hide"></span></button>
+</nav>
+<script>
+// ===== 設定（デプロイ時に差し替え） =====
+const LIFF_ID = "2011294482-jfNitG8e";
+const API = "https://rcsaydtknneqyoznanbw.supabase.co/functions/v1/customer-api"; // https://<project>.functions.supabase.co/customer-api
+
+const $ = s => document.querySelector(s);
+const app = $("#app");
+let S = null; // me の結果
+let view = "home";
+
+async function api(action, p = {}) {
+  const idToken = liff.getIDToken();
+  const r = await fetch(API, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action, idToken, ...p }) });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || "エラー");
+  return j;
+}
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const fmtDT = iso => new Date(iso).toLocaleString("ja-JP", { month: "numeric", day: "numeric", weekday: "short", hour: "2-digit", minute: "2-digit" });
+const fmtT = iso => new Date(iso).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
+const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; };
+
+async function boot() {
+  await liff.init({ liffId: LIFF_ID });
+  if (!liff.isLoggedIn()) { liff.login(); return; }
+  await load();
+}
+async function load() {
+  const r = await api("me");
+  if (r.needRegister) return renderRegister(r.lineName);
+  S = r;
+  $("#storeName").textContent = S.store.name;
+  $("#custName").textContent = S.customer.name + " 様";
+  $("#nav").classList.remove("hide");
+  setUnread(S.unread);
+  render();
+}
+function setUnread(n) { const b = $("#unread"); b.textContent = n; b.classList.toggle("hide", !n); }
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => { view = b.dataset.v; render(); });
+
+function render() {
+  document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b.dataset.v === view));
+  ({ home: renderHome, book: renderBook, weight: renderWeight, chat: renderChat })[view]();
+}
+
+function renderRegister(lineName) {
+  app.innerHTML = `<div class="card"><h2>初回登録</h2>
+    <label>お名前</label><input id="rn" value="${esc(lineName)}">
+    <label>電話番号<wbr>（任意）</label><input id="rp" inputmode="tel">
+    <div style="margin-top:14px"><button id="rgo">登録して<wbr>始める</button></div></div>`;
+  $("#rgo").onclick = async () => { try { await api("register", { name: $("#rn").value.trim(), phone: $("#rp").value.trim() }); await load(); } catch (e) { alert(e.message); } };
+}
+
+function renderHome() {
+  const t = S.tickets || [], up = S.upcoming || [];
+  const remain = t.reduce((a, x) => a + Math.max(0, x.remaining), 0);
+  app.innerHTML = `
+  <div class="card"><h2>回数券</h2>
+    <div class="big">残り ${remain} 回</div>
+    ${t.map(x => `<div class="row"><span>${esc(x.name)}</span><span class="sub">残${x.remaining}/${x.total_count}${x.expires_at ? "・" + x.expires_at.slice(5).replace("-", "/") + "まで" : ""}</span></div>`).join("") || `<div class="sub">登録された回数券はありません</div>`}
+  </div>
+  <div class="card"><h2>次回以降の<wbr>予約</h2>
+    ${up.map(b => `<div class="row"><div><div><b>${fmtDT(b.start_at)}</b></div><div class="sub">${b.duration_minutes}分 ${esc(b.menu)}</div></div>
+      <div><button class="ghost" data-re="${b.id}">変更</button> <button class="danger" data-cx="${b.id}">取消</button></div></div>`).join("") || `<div class="sub">予約はありません</div>`}
+    <div style="margin-top:10px"><button id="gobook">予約する</button></div>
+  </div>
+  <div class="card"><h2>キャンセル規定</h2><div class="sub">開始 ${S.store.cancel_free_until_hours} 時間前まで<wbr>無料。<wbr>${S.store.late_cancel_consumes ? "それ以降の<wbr>キャンセルは<wbr>回数券1回分を<wbr>消化します。<wbr>" : ""}日時変更も<wbr>同じ<wbr>期限です。</div></div>`;
+  $("#gobook").onclick = () => { view = "book"; render(); };
+  app.querySelectorAll("[data-cx]").forEach(b => b.onclick = () => cancelBooking(b.dataset.cx));
+  app.querySelectorAll("[data-re]").forEach(b => b.onclick = () => { view = "book"; renderBook(b.dataset.re); });
+}
+
+async function cancelBooking(id) {
+  const b = S.upcoming.find(x => x.id === id);
+  const late = (new Date(b.start_at) - Date.now()) / 36e5 < S.store.cancel_free_until_hours;
+  const msg = late && S.store.late_cancel_consumes ? "期限を過ぎているため回数券1回分を消化します。キャンセルしますか？" : "キャンセルしますか？";
+  if (!confirm(msg)) return;
+  try { await api("cancel", { booking_id: id }); await load(); } catch (e) { alert(e.message); }
+}
+
+let bookState = {};
+async function renderBook(rescheduleId = null) {
+  view = "book";
+  document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b.dataset.v === "book"));
+  const reB = rescheduleId ? S.upcoming.find(x => x.id === rescheduleId) : null;
+  bookState = { date: bookState.date || today(), duration: reB ? reB.duration_minutes : S.store.default_duration, slot: null, re: rescheduleId };
+  const max = new Date(Date.now() + S.store.booking_open_days * 864e5).toISOString().slice(0, 10);
+  app.innerHTML = `<div class="card"><h2>${reB ? "日時変更：" + fmtDT(reB.start_at) + " →" : "予約する<wbr>"}</h2>
+    <label>日付</label><input type="date" id="bd" value="${bookState.date}" min="${today()}" max="${max}">
+    ${reB ? "" : `<label>時間</label><select id="bdur">${[30,45,60,90].map(m => `<option value="${m}" ${m===bookState.duration?"selected":""}>${m}分</option>`).join("")}</select>
+    <label>メニュー</label><select id="bmenu"><option>パーソナル</option><option>体験</option><option>カウンセリング</option></select>`}
+    <label>空き時間</label><div class="slots" id="slots"><div class="sub">読み込み中…</div></div>
+    ${reB ? "" : `<label>ご要望（任意）</label><textarea id="bnote" rows="2"></textarea>`}
+    <div style="margin-top:14px"><button id="bgo" disabled>${reB ? "この<wbr>日時に<wbr>変更する<wbr>" : "この<wbr>日時で<wbr>予約する<wbr>"}</button></div></div>`;
+  const loadSlots = async () => {
+    bookState.date = $("#bd").value; bookState.slot = null; $("#bgo").disabled = true;
+    if (!reB) bookState.duration = Number($("#bdur").value);
+    $("#slots").innerHTML = `<div class="sub">読み込み中…</div>`;
+    try {
+      const { slots } = await api("slots", { date: bookState.date, duration: bookState.duration });
+      $("#slots").innerHTML = slots.length ? slots.map(s => `<button data-s="${s}">${fmtT(s)}</button>`).join("") : `<div class="sub">この<wbr>日は<wbr>空きが<wbr>ありません</div>`;
+      $("#slots").querySelectorAll("button").forEach(b => b.onclick = () => { $("#slots").querySelectorAll("button").forEach(x => x.classList.remove("sel")); b.classList.add("sel"); bookState.slot = b.dataset.s; $("#bgo").disabled = false; });
+    } catch (e) { $("#slots").innerHTML = `<div class="sub">${esc(e.message)}</div>`; }
+  };
+  $("#bd").onchange = loadSlots; if (!reB) $("#bdur").onchange = loadSlots;
+  loadSlots();
+  $("#bgo").onclick = async () => {
+    $("#bgo").disabled = true;
+    try {
+      if (reB) await api("reschedule", { booking_id: reB.id, start_at: bookState.slot });
+      else await api("book", { start_at: bookState.slot, duration: bookState.duration, menu: $("#bmenu").value, note: $("#bnote").value });
+      alert((reB ? "変更" : "予約") + "しました：" + fmtDT(bookState.slot));
+      view = "home"; await load();
+    } catch (e) { alert(e.message); $("#bgo").disabled = false; }
+  };
+}
+
+function renderWeight() {
+  const w = (S.weights || []).slice().reverse();
+  app.innerHTML = `<div class="card"><h2>今日の<wbr>記録</h2>
+    <label>日付</label><input type="date" id="wd" value="${today()}" max="${today()}">
+    <label>体重<wbr>（kg）</label><input id="wk" inputmode="decimal" placeholder="例 62.4">
+    <label>体脂肪率<wbr>（%・<wbr>任意）</label><input id="wf" inputmode="decimal">
+    <div style="margin-top:14px"><button id="wgo">記録する</button></div></div>
+    <div class="card"><h2>推移<wbr>（直近90日）</h2><canvas id="wc" width="600" height="320"></canvas>
+    ${w.slice(-7).reverse().map(x => `<div class="row"><span>${x.measured_on.slice(5).replace("-", "/")}</span><span><b>${x.weight_kg}</b> kg ${x.body_fat_pct ? `<span class="sub">${x.body_fat_pct}%</span>` : ""}</span></div>`).join("") || `<div class="sub">まだ記録がありません</div>`}</div>`;
+  $("#wgo").onclick = async () => {
+    const v = parseFloat($("#wk").value); if (!(v > 20 && v < 300)) return alert("体重を確認してください");
+    try { await api("weight", { date: $("#wd").value, weight: v, fat: $("#wf").value || null }); await load(); view = "weight"; render(); } catch (e) { alert(e.message); }
+  };
+  drawChart(w);
+}
+function drawChart(w) {
+  const c = $("#wc"); if (!c || w.length < 2) return; const ctx = c.getContext("2d");
+  const W = c.width, H = c.height, p = 30;
+  const ys = w.map(x => Number(x.weight_kg)); const lo = Math.min(...ys) - 0.5, hi = Math.max(...ys) + 0.5;
+  const X = i => p + (W - 2 * p) * i / (w.length - 1), Y = v => H - p - (H - 2 * p) * (v - lo) / (hi - lo);
+  ctx.clearRect(0, 0, W, H); ctx.strokeStyle = "#e5e7eb"; ctx.lineWidth = 1;
+  for (let k = 0; k <= 4; k++) { const y = p + (H - 2 * p) * k / 4; ctx.beginPath(); ctx.moveTo(p, y); ctx.lineTo(W - p, y); ctx.stroke(); ctx.fillStyle = "#6b7280"; ctx.font = "16px sans-serif"; ctx.fillText((hi - (hi - lo) * k / 4).toFixed(1), 0, y + 5); }
+  ctx.strokeStyle = "#0f766e"; ctx.lineWidth = 3; ctx.beginPath(); ys.forEach((v, i) => i ? ctx.lineTo(X(i), Y(v)) : ctx.moveTo(X(i), Y(v))); ctx.stroke();
+  ctx.fillStyle = "#0f766e"; ys.forEach((v, i) => { ctx.beginPath(); ctx.arc(X(i), Y(v), 4, 0, 7); ctx.fill(); });
+}
+
+let chatTimer = null;
+async function renderChat() {
+  app.innerHTML = `<div class="card"><h2>スタッフへの<wbr>連絡</h2><div class="chat" id="chat"><div class="sub">読み込み中…</div></div>
+    <div class="sendbar"><textarea id="cb" placeholder="メッセージを入力"></textarea><button id="cs">送信</button></div></div>`;
+  const refresh = async () => {
+    if (view !== "chat") { clearInterval(chatTimer); return; }
+    try {
+      const { messages } = await api("messages");
+      $("#chat").innerHTML = messages.map(m => `<div class="msg ${m.sender === "customer" ? "c" : "s"}">${esc(m.body)}<time>${fmtDT(m.created_at)}</time></div>`).join("") || `<div class="sub">まだやり取りは<wbr>ありません</div>`;
+      $("#chat").lastElementChild?.scrollIntoView({ block: "end" }); setUnread(0);
+    } catch (e) { $("#chat").innerHTML = `<div class="sub">${esc(e.message)}</div>`; }
+  };
+  clearInterval(chatTimer); chatTimer = setInterval(refresh, 8000); refresh();
+  $("#cs").onclick = async () => { const t = $("#cb").value.trim(); if (!t) return; $("#cs").disabled = true; try { await api("send", { body: t }); $("#cb").value = ""; await refresh(); } catch (e) { alert(e.message); } $("#cs").disabled = false; };
+}
+
+boot().catch(e => { app.innerHTML = `<div class="center">起動エラー：${esc(e.message)}</div>`; });
+</script>
+</body>
+</html>
