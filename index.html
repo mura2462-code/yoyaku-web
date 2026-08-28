@@ -88,6 +88,15 @@
   nav{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--line);display:flex;padding-bottom:env(safe-area-inset-bottom)}
   nav button{flex:1;background:none;color:var(--sub);border-radius:0;padding:10px 0 8px;font-size:11px;font-weight:600}nav button.on{color:var(--acc)}
   nav .ic{font-size:20px;display:block}
+  .days{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin:6px 0 10px}
+  .days .d{border:1px solid var(--line);border-radius:10px;padding:6px 0 5px;text-align:center;font-size:12px;line-height:1.25;background:var(--card);cursor:pointer}
+  .days .d .n{font-size:15px;font-weight:700}.days .d .w{color:var(--muted);font-size:10px}.days .d .m{font-size:13px;font-weight:700;margin-top:2px}
+  .days .d.sat .w{color:#2563eb}.days .d.sun .w{color:#dc2626}
+  .days .d.l3{background:#dcfce7}.days .d.l2{background:#fef9c3}.days .d.l1{background:#fee2e2}.days .d.l0,.days .d.na{opacity:.45;cursor:default}
+  .days .d.sel{outline:2px solid var(--acc);outline-offset:-1px}
+  .pager{display:flex;justify-content:space-between;align-items:center;margin-top:4px}.pager button{padding:6px 12px}
+  .legend{display:flex;gap:10px;font-size:11px;color:var(--muted);margin:4px 0 8px}.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:3px;vertical-align:-1px}
+  .grp{font-size:12px;color:var(--muted);margin:8px 0 4px}
   .slots{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.slots button{background:var(--accw);color:var(--acc);padding:10px 0}.slots button.sel{background:var(--acc);color:#fff}
   .notice{background:var(--warnbg);color:var(--warn);border-radius:10px;padding:10px;font-size:13px;margin:8px 0}
   .chat{display:flex;flex-direction:column;gap:6px}.msg{max-width:80%;padding:9px 12px;border-radius:14px;font-size:15px;white-space:pre-wrap;word-break:break-word}
@@ -191,22 +200,43 @@ function renderHome() {
     <div class="sub" style="margin-top:8px">クレジットカードで<wbr>決済します。<wbr>購入後すぐに<wbr>残り回数に<wbr>反映されます。</div></div>` : ""}
   <div class="card"><h2>次回以降の<wbr>予約</h2>
     ${up.map(b => `<div class="row"><div><div><b>${fmtDT(b.start_at)}</b></div><div class="sub">${b.duration_minutes}分 ${esc(b.menu)}</div></div>
-      <div><button class="ghost" data-gcal="${b.id}" title="Googleカレンダーに<wbr>追加">📅</button> <button class="ghost" data-re="${b.id}">変更</button> <button class="danger" data-cx="${b.id}">取消</button></div></div>`).join("") || `<div class="sub">予約は<wbr>ありません</div>`}
+      <div><button class="ghost" data-cal="${b.id}" title="カレンダーに<wbr>追加">📅</button> <button class="ghost" data-re="${b.id}">変更</button> <button class="danger" data-cx="${b.id}">取消</button></div></div>`).join("") || `<div class="sub">予約は<wbr>ありません</div>`}
+    <div id="calsheet" class="hide" style="margin-top:8px;border:1px solid var(--line);border-radius:10px;padding:10px">
+      <div class="sub" id="caltitle" style="margin-bottom:6px"></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="ghost" id="cal-g">Googleカレンダー</button><button class="ghost" id="cal-a">iPhone / Apple</button><button class="ghost" id="cal-o">Outlook</button><button class="ghost" id="cal-x">閉じる</button></div>
+      <div class="sub" style="margin-top:6px">日時・<wbr>内容が<wbr>入った<wbr>状態で<wbr>開きます。<wbr>「追加」<wbr>を<wbr>押すだけで<wbr>登録できます。</div>
+    </div>
     <div style="margin-top:10px"><button id="gobook">予約する</button></div>
+    <div id="soon" class="sub" style="margin-top:8px"></div>
   </div>
   ${S.calendar && S.calendar.ics_url ? `<div class="card"><h2>カレンダー連携</h2>
-    <div class="sub">お使いの<wbr>カレンダーに<wbr>予約を<wbr>自動で<wbr>反映します。<wbr>変更・<wbr>キャンセルも<wbr>追い<wbr>かけます<wbr>（反映まで<wbr>数時間かかる<wbr>ことがあります）。</div>
+    <div class="sub">予約ごとの<wbr>追加は<wbr>上の<wbr>📅から。<wbr>すべての<wbr>予約を<wbr>自動で<wbr>反映したい方は<wbr>こちらで<wbr>購読できます<wbr>（変更・<wbr>キャンセルも<wbr>追従、<wbr>反映まで<wbr>数時間かかる<wbr>ことがあります）。</div>
     <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap"><button class="ghost" id="cal-google">Googleカレンダー</button><button class="ghost" id="cal-apple">iPhoneカレンダー</button><button class="ghost" id="cal-copy">URLを<wbr>コピー</button></div>
   </div>` : ""}
   <div class="card"><h2>キャンセル規定</h2><div class="sub">開始 ${S.store.cancel_free_until_hours} 時間前まで<wbr>無料。${S.store.late_cancel_consumes ? "それ以降のキャンセルは回数券1回分を消化します。" : ""}日時変更も<wbr>同じ<wbr>期限です。</div></div>`;
   $("#gobook").onclick = () => { view = "book"; render(); };
+  api("availability", { days: 7 }).then(r => {
+    const el = $("#soon"); if (!el) return;
+    const days = r.days.filter(d => d.free > 0).slice(0, 3);
+    if (!days.length) { el.textContent = "今週は満枠です。次週以降をご確認ください。"; return; }
+    el.innerHTML = "直近の空き： " + days.map(d => `<a href="#" data-soon="${d.date}">${d.date.slice(5).replace("-","/")}（${d.free}枠）</a>`).join("・");
+    el.querySelectorAll("[data-soon]").forEach(x => x.onclick = e => { e.preventDefault(); bookState.date = x.dataset.soon; bookState.from = today(); renderBook(); });
+  }).catch(() => {});
   const ext = url => liff.isInClient() ? liff.openWindow({ url, external: true }) : window.open(url, "_blank");
-  app.querySelectorAll("[data-gcal]").forEach(b => b.onclick = () => {
-    const x = up.find(u => u.id === b.dataset.gcal); if (!x) return;
+  const openCal = id => {
+    const x = up.find(u => u.id === id); if (!x) return;
     const u = d => new Date(d).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
     const end = new Date(new Date(x.start_at).getTime() + x.duration_minutes * 6e4);
-    ext("https://calendar.google.com/calendar/render?action=TEMPLATE&text=" + encodeURIComponent(S.store.name + (x.menu ? " " + x.menu : "")) + "&dates=" + u(x.start_at) + "/" + u(end) + "&details=" + encodeURIComponent("予約の変更・キャンセルはLINEから"));
-  });
+    const title = S.store.name + (x.menu ? " " + x.menu : ""), memo = "予約の変更・キャンセルはLINEから";
+    $("#caltitle").textContent = fmtDT(x.start_at) + " をカレンダーに追加"; $("#calsheet").classList.remove("hide");
+    $("#cal-g").onclick = () => ext("https://calendar.google.com/calendar/render?action=TEMPLATE&text=" + encodeURIComponent(title) + "&dates=" + u(x.start_at) + "/" + u(end) + "&details=" + encodeURIComponent(memo));
+    $("#cal-o").onclick = () => ext("https://outlook.live.com/calendar/0/deeplink/compose?path=/calendar/action/compose&rru=addevent&subject=" + encodeURIComponent(title) + "&startdt=" + encodeURIComponent(new Date(x.start_at).toISOString()) + "&enddt=" + encodeURIComponent(end.toISOString()) + "&body=" + encodeURIComponent(memo));
+    $("#cal-a").onclick = () => { if (S.calendar && S.calendar.ics_url) ext(S.calendar.ics_url + "&e=" + x.id); else alert("準備中です"); };
+    $("#cal-x").onclick = () => $("#calsheet").classList.add("hide");
+    $("#calsheet").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  };
+  app.querySelectorAll("[data-cal]").forEach(b => b.onclick = () => openCal(b.dataset.cal));
+  if (S.justBooked) { const id = S.justBooked; S.justBooked = null; openCal(id); }
   if (S.calendar && S.calendar.ics_url) {
     const webcal = S.calendar.ics_url.replace(/^https?:/, "webcal:");
     $("#cal-google").onclick = () => ext("https://calendar.google.com/calendar/r?cid=" + encodeURIComponent(webcal));
@@ -235,34 +265,67 @@ async function renderBook(rescheduleId = null) {
   view = "book";
   document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b.dataset.v === "book"));
   const reB = rescheduleId ? S.upcoming.find(x => x.id === rescheduleId) : null;
-  bookState = { date: bookState.date || today(), duration: reB ? reB.duration_minutes : S.store.default_duration, slot: null, re: rescheduleId };
-  const max = new Date(Date.now() + S.store.booking_open_days * 864e5).toISOString().slice(0, 10);
+  bookState = { date: bookState.date || today(), from: bookState.from || today(), duration: reB ? reB.duration_minutes : S.store.default_duration, slot: null, re: rescheduleId };
   app.innerHTML = `<div class="card"><h2>${reB ? "日時変更：" + fmtDT(reB.start_at) + " →" : "予約する"}</h2>
-    <label>日付</label><input type="date" id="bd" value="${bookState.date}" min="${today()}" max="${max}">
     ${reB ? "" : `<label>時間</label><select id="bdur">${[30,45,60,90].map(m => `<option value="${m}" ${m===bookState.duration?"selected":""}>${m}分</option>`).join("")}</select>
     <label>メニュー</label><select id="bmenu"><option>パーソナル</option><option>体験</option><option>カウンセリング</option></select>`}
-    <label>空き時間</label><div class="slots" id="slots"><div class="sub">読み込み中…</div></div>
+    <label>空き状況</label>
+    <div class="legend"><span><i style="background:#dcfce7"></i>余裕あり</span><span><i style="background:#fef9c3"></i>残りわずか</span><span><i style="background:#fee2e2"></i>満枠</span></div>
+    <div class="days" id="days"></div>
+    <div class="pager"><button class="ghost" id="dprev">‹ 前の<wbr>2週間</button><span class="sub" id="dtitle"></span><button class="ghost" id="dnext">次の<wbr>2週間 ›</button></div>
+    <label>時間を<wbr>選ぶ</label><div id="slots"><div class="sub">読み込み中…</div></div>
     ${reB ? "" : `<label>ご要望<wbr>（任意）</label><textarea id="bnote" rows="2"></textarea>`}
     <div style="margin-top:14px"><button id="bgo" disabled>${reB ? "この日時に変更する" : "この日時で予約する"}</button></div></div>`;
-  const loadSlots = async () => {
-    bookState.date = $("#bd").value; bookState.slot = null; $("#bgo").disabled = true;
-    if (!reB) bookState.duration = Number($("#bdur").value);
-    $("#slots").innerHTML = `<div class="sub">読み込み中…</div>`;
-    try {
-      const { slots } = await api("slots", { date: bookState.date, duration: bookState.duration });
-      $("#slots").innerHTML = slots.length ? slots.map(s => `<button data-s="${s}">${fmtT(s)}</button>`).join("") : `<div class="sub">この<wbr>日は<wbr>空きが<wbr>ありません</div>`;
-      $("#slots").querySelectorAll("button").forEach(b => b.onclick = () => { $("#slots").querySelectorAll("button").forEach(x => x.classList.remove("sel")); b.classList.add("sel"); bookState.slot = b.dataset.s; $("#bgo").disabled = false; });
-    } catch (e) { $("#slots").innerHTML = `<div class="sub">${esc(e.message)}</div>`; }
+  let avail = [];
+  const maxDay = new Date(Date.now() + S.store.booking_open_days * 864e5).toISOString().slice(0, 10);
+  const level = d => !d.open || d.date > maxDay ? "na" : d.free === 0 ? "l1" : d.free / Math.max(d.total, 1) < 0.34 || d.free <= 2 ? "l2" : "l3";
+  const drawDays = () => {
+    $("#days").innerHTML = avail.map(d => {
+      const dt = new Date(d.date + "T00:00:00+09:00"), w = dt.getDay(), lv = level(d);
+      return `<div class="d ${lv} ${w===6?"sat":w===0?"sun":""} ${d.date===bookState.date?"sel":""}" data-d="${d.date}">
+        <div class="w">${"日月火水木金土"[w]}</div><div class="n">${dt.getDate()}</div><div class="m">${lv==="na"?"–":lv==="l1"?"×":d.free}</div></div>`;
+    }).join("");
+    const f = avail[0], l = avail[avail.length - 1];
+    $("#dtitle").textContent = f && l ? `${f.date.slice(5).replace("-","/")}〜${l.date.slice(5).replace("-","/")}` : "";
+    $("#dprev").disabled = bookState.from <= today();
+    $("#dnext").disabled = l && l.date >= maxDay;
+    $("#days").querySelectorAll(".d").forEach(el => el.onclick = () => { const d = avail.find(x => x.date === el.dataset.d); if (!d || level(d) === "na" || d.free === 0) return; bookState.date = d.date; bookState.slot = null; $("#bgo").disabled = true; drawDays(); drawSlots(); });
   };
-  $("#bd").onchange = loadSlots; if (!reB) $("#bdur").onchange = loadSlots;
-  loadSlots();
+  const drawSlots = () => {
+    const d = avail.find(x => x.date === bookState.date);
+    if (!d) { $("#slots").innerHTML = `<div class="sub">日付を<wbr>選んでください</div>`; return; }
+    if (!d.slots.length) { $("#slots").innerHTML = `<div class="sub">${d.date.slice(5).replace("-","/")} は<wbr>空きが<wbr>ありません。<wbr>他の<wbr>日を<wbr>お選びください</div>`; return; }
+    const grp = { 午前: [], 午後: [], 夜: [] };
+    d.slots.forEach(s => { const h = new Date(s).getHours(); (h < 12 ? grp.午前 : h < 17 ? grp.午後 : grp.夜).push(s); });
+    $("#slots").innerHTML = `<div class="sub" style="margin-bottom:4px">${fmtDT(d.slots[0]).split(" ")[0]}・空き ${d.free} 枠</div>` +
+      Object.entries(grp).filter(([, v]) => v.length).map(([k, v]) => `<div class="grp">${k}</div><div class="slots">${v.map(s => `<button data-s="${s}">${fmtT(s)}</button>`).join("")}</div>`).join("");
+    $("#slots").querySelectorAll("button").forEach(b => b.onclick = () => { $("#slots").querySelectorAll("button").forEach(x => x.classList.remove("sel")); b.classList.add("sel"); bookState.slot = b.dataset.s; $("#bgo").disabled = false; });
+  };
+  const loadAvail = async () => {
+    $("#days").innerHTML = `<div class="sub" style="grid-column:1/-1">読み込み中…</div>`;
+    try {
+      const r = await api("availability", { from: bookState.from, days: 14, duration: bookState.duration });
+      avail = r.days;
+      // 選択日が範囲外・満枠なら、範囲内で最初の空き日に寄せる
+      const cur = avail.find(x => x.date === bookState.date);
+      if (!cur || cur.free === 0) { const first = avail.find(x => x.free > 0); if (first) bookState.date = first.date; }
+      drawDays(); drawSlots();
+    } catch (e) { $("#days").innerHTML = `<div class="sub" style="grid-column:1/-1">${esc(e.message)}</div>`; }
+  };
+  const shift = n => { const d = new Date(bookState.from + "T00:00:00+09:00"); d.setDate(d.getDate() + n); let f = d.toISOString().slice(0, 10); if (f < today()) f = today(); bookState.from = f; bookState.date = f; bookState.slot = null; $("#bgo").disabled = true; loadAvail(); };
+  $("#dprev").onclick = () => shift(-14); $("#dnext").onclick = () => shift(14);
+  if (!reB) $("#bdur").onchange = () => { bookState.duration = Number($("#bdur").value); bookState.slot = null; $("#bgo").disabled = true; loadAvail(); };
+  loadAvail();
   $("#bgo").onclick = async () => {
     $("#bgo").disabled = true;
     try {
-      if (reB) await api("reschedule", { booking_id: reB.id, start_at: bookState.slot });
-      else await api("book", { start_at: bookState.slot, duration: bookState.duration, menu: $("#bmenu").value, note: $("#bnote").value });
-      alert((reB ? "変更" : "予約") + "しました：" + fmtDT(bookState.slot));
+      let made = null;
+      if (reB) made = await api("reschedule", { booking_id: reB.id, start_at: bookState.slot });
+      else made = await api("book", { start_at: bookState.slot, duration: bookState.duration, menu: $("#bmenu").value, note: $("#bnote").value });
+      alert((reB ? "変更" : "予約") + "しました：" + fmtDT(bookState.slot) + "\nカレンダーに追加する場合は次の画面で選べます。");
       view = "home"; await load();
+      const bid = (made && made.booking && made.booking.id) || (reB && reB.id);
+      if (bid && S.upcoming.some(u => u.id === bid)) { S.justBooked = bid; renderHome(); }
     } catch (e) { alert(e.message); $("#bgo").disabled = false; }
   };
 }
