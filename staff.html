@@ -44,12 +44,32 @@
     <div id="view-sched">
       <div class="card">
         <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0" id="sched-title">予約状況</h2><div class="row"><button class="ghost sm" id="wk-prev">‹ 前週</button><button class="ghost sm" id="wk-today">今日</button><button class="ghost sm" id="wk-next">翌週 ›</button></div></div>
+        <button id="bk-new" style="width:100%;margin-bottom:8px">＋ 予約を追加</button>
         <div class="days" id="days"></div>
         <div class="seg" style="margin-top:8px"><button data-who="me" class="on">自分の予定</button><button data-who="all">店舗全体</button></div>
         <div class="stat" id="stat"></div>
         <div id="bk-list"><div class="sub">読み込み中…</div></div>
       </div>
-      <p class="sub">閲覧専用です。予約の追加・変更はiPhoneアプリ「予約」から行います。</p>
+      <div class="card hide" id="bk-form">
+        <h2>予約を追加</h2>
+        <label>顧客</label>
+        <input id="bf-q" placeholder="名前で検索" autocomplete="off">
+        <div id="bf-cands" class="sub"></div>
+        <input type="hidden" id="bf-cid">
+        <div id="bf-newc" class="hide" style="margin-top:6px">
+          <div class="row"><input id="bf-nname" placeholder="新規顧客の名前"><input id="bf-nphone" placeholder="電話（任意）"></div>
+        </div>
+        <label>控えの送付先メール（任意・空なら送りません）</label>
+        <input id="bf-email" type="email" placeholder="example@example.com" autocomplete="off">
+        <div class="sub" id="bf-line"></div>
+        <div class="row"><div style="flex:1"><label>日付</label><input id="bf-date" type="date"></div><div style="flex:1"><label>開始</label><select id="bf-time"></select></div></div>
+        <div class="row"><div style="flex:1"><label>時間</label><select id="bf-dur"><option value="30">30分</option><option value="45">45分</option><option value="60" selected>60分</option><option value="75">75分</option><option value="90">90分</option><option value="120">120分</option></select></div><div style="flex:1"><label>担当</label><select id="bf-staff"></select></div></div>
+        <label>メニュー（任意）</label><input id="bf-menu" placeholder="例）パーソナル60分">
+        <label>備考（顧客に見えます・任意）</label><input id="bf-note">
+        <div class="msg" id="bf-msg"></div>
+        <div class="row"><button class="ghost" id="bf-cancel" style="flex:1">閉じる</button><button id="bf-save" style="flex:2">登録して控えを送る</button></div>
+      </div>
+      <p class="sub">予約の変更・キャンセルはiPhoneアプリ「予約」から行います。登録すると顧客へLINE（連携済みの方）とメール（入力した場合）で控えが届きます。</p>
     </div>
 
     <div id="view-cust" class="hide">
@@ -196,6 +216,43 @@ $("#wk-prev").onclick=()=>{ SCH.base.setDate(SCH.base.getDate()-7); SCH.sel=ymd(
 $("#wk-next").onclick=()=>{ SCH.base.setDate(SCH.base.getDate()+7); SCH.sel=ymd(SCH.base); loadSched(); };
 $("#wk-today").onclick=()=>{ SCH.base=weekStart(new Date()); SCH.sel=ymd(new Date()); loadSched(); };
 document.querySelectorAll(".seg button").forEach(b=> b.onclick=()=>{ SCH.who=b.dataset.who; document.querySelectorAll(".seg button").forEach(x=>x.classList.toggle("on",x===b)); renderSched(); });
+
+// 予約追加フォーム
+let BF={ cid:null, cust:null };
+function timeOptions(){ const st=SCH.data?.store||{open_time:"07:00",close_time:"23:00",slot_minutes:30}; const m=t=>{const [h,mi]=t.split(":").map(Number);return h*60+mi;};
+  const out=[]; for(let x=m(st.open_time); x<m(st.close_time); x+=st.slot_minutes){ out.push(`<option value="${String(Math.floor(x/60)).padStart(2,"0")}:${String(x%60).padStart(2,"0")}">${Math.floor(x/60)}:${String(x%60).padStart(2,"0")}</option>`); } return out.join(""); }
+function openForm(){
+  BF={cid:null,cust:null}; $("#bf-q").value=""; $("#bf-cands").innerHTML=""; $("#bf-cid").value=""; $("#bf-email").value=""; $("#bf-line").textContent=""; $("#bf-newc").classList.add("hide"); $("#bf-nname").value=""; $("#bf-nphone").value="";
+  $("#bf-date").value=SCH.sel||ymd(new Date()); $("#bf-time").innerHTML=timeOptions(); $("#bf-dur").value=String(SCH.data?.store?.default_duration||60);
+  $("#bf-menu").value=""; $("#bf-note").value=""; $("#bf-msg").textContent=""; $("#bf-msg").className="msg";
+  const st=SCH.data?.staffs||[]; $("#bf-staff").innerHTML = st.filter(s=>s.active).map(s=>`<option value="${s.id}" ${s.id===SCH.data.me.id?"selected":""}>${s.name}</option>`).join("");
+  $("#bf-form").classList.remove("hide"); $("#bf-q").focus();
+}
+$("#bk-new").onclick=openForm; $("#bf-cancel").onclick=()=>$("#bf-form").classList.add("hide");
+$("#bf-q").oninput=()=>{ const q=$("#bf-q").value.trim(); BF.cid=null; $("#bf-cid").value="";
+  const hits=q?CUSTS.filter(c=>c.name.includes(q)).slice(0,8):[];
+  $("#bf-cands").innerHTML = hits.map(c=>`<a href="#" data-id="${c.id}" style="display:block;padding:6px 0;border-top:1px solid var(--line);color:var(--txt);text-decoration:none">${c.name} <span class="sub">${c.linked?"LINE連携済":"LINE未連携"}${c.email?"・メールあり":""}</span></a>`).join("") + (q?`<a href="#" data-new="1" style="display:block;padding:6px 0;border-top:1px solid var(--line);color:var(--acc);text-decoration:none">「${q}」を新規顧客として登録</a>`:"");
+  document.querySelectorAll("#bf-cands a").forEach(a=>a.onclick=e=>{ e.preventDefault();
+    if(a.dataset.new){ $("#bf-newc").classList.remove("hide"); $("#bf-nname").value=q; BF.cust=null; $("#bf-line").textContent="新規顧客（LINE未連携）。控えはメールのみ"; $("#bf-cands").innerHTML=""; return; }
+    const c=CUSTS.find(x=>x.id===a.dataset.id); BF.cid=c.id; BF.cust=c; $("#bf-q").value=c.name; $("#bf-newc").classList.add("hide"); $("#bf-email").value=c.email||""; $("#bf-cands").innerHTML="";
+    $("#bf-line").textContent = c.linked ? "LINE連携済：LINEにも控えが届きます" : "LINE未連携：控えはメールのみ"; });
+};
+$("#bf-save").onclick=async()=>{
+  const msg=(t,cls)=>{ $("#bf-msg").textContent=t; $("#bf-msg").className="msg "+(cls||""); };
+  let cid=BF.cid; const email=$("#bf-email").value.trim();
+  if(!cid && $("#bf-newc").classList.contains("hide")) return msg("顧客を選んでください","err");
+  const date=$("#bf-date").value, time=$("#bf-time").value; if(!date||!time) return msg("日時を指定してください","err");
+  $("#bf-save").disabled=true; msg("登録中…");
+  try{
+    if(!cid){ const j=await ops("customer_create",{ name:$("#bf-nname").value.trim(), phone:$("#bf-nphone").value.trim(), email }); cid=j.customer.id; }
+    const start_at=new Date(`${date}T${time}:00+09:00`).toISOString();
+    const j=await ops("booking_create",{ customer_id:cid, start_at, duration_minutes:Number($("#bf-dur").value), menu:$("#bf-menu").value.trim(), note:$("#bf-note").value.trim(), email, staff_id:$("#bf-staff").value });
+    msg(`登録しました。控え：LINE ${j.notify.line?"送信":"なし（未連携）"} / メール ${j.notify.mail?"送信":"なし"}`,"ok");
+    SCH.sel=date; SCH.base=weekStart(new Date(date+"T00:00:00")); await Promise.all([loadSched(), loadCusts()]);
+    setTimeout(()=>$("#bf-form").classList.add("hide"),1500);
+  }catch(e){ msg(e.message,"err"); }
+  $("#bf-save").disabled=false;
+};
 
 // 配信
 $("#cast-count").onclick = async ()=>{
