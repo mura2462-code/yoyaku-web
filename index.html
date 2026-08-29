@@ -199,7 +199,7 @@ function renderHome() {
       <button class="ghost" data-buy="${x.id}">¥${Number(x.price).toLocaleString()}</button></div>`).join("")}
     <div class="sub" style="margin-top:8px">クレジットカードで<wbr>決済します。<wbr>購入後すぐに<wbr>残り回数に<wbr>反映されます。</div></div>` : ""}
   <div class="card"><h2>次回以降の<wbr>予約</h2>
-    ${up.map(b => `<div class="row"><div><div><b>${fmtDT(b.start_at)}</b></div><div class="sub">${b.duration_minutes}分 ${esc(b.menu)}</div></div>
+    ${up.map(b => `<div class="row"><div><div><b>${fmtDT(b.start_at)}</b></div><div class="sub">${b.duration_minutes}分 ${esc(b.menu)}${b.location ? "・" + esc(b.location.name) : ""}${b.staff ? "・担当 " + esc(b.staff.name) + (b.nominated ? "（指名）" : "") : ""}</div></div>
       <div><button class="ghost" data-cal="${b.id}" title="カレンダーに<wbr>追加">📅</button> <button class="ghost" data-re="${b.id}">変更</button> <button class="danger" data-cx="${b.id}">取消</button></div></div>`).join("") || `<div class="sub">予約は<wbr>ありません</div>`}
     <div id="calsheet" class="hide" style="margin-top:8px;border:1px solid var(--line);border-radius:10px;padding:10px">
       <div class="sub" id="caltitle" style="margin-bottom:6px"></div>
@@ -215,7 +215,7 @@ function renderHome() {
   </div>` : ""}
   <div class="card"><h2>キャンセル規定</h2><div class="sub">開始 ${S.store.cancel_free_until_hours} 時間前まで<wbr>無料。${S.store.late_cancel_consumes ? "それ以降のキャンセルは回数券1回分を消化します。" : ""}日時変更も<wbr>同じ<wbr>期限です。</div></div>`;
   $("#gobook").onclick = () => { view = "book"; render(); };
-  api("availability", { days: 7 }).then(r => {
+  api("availability", { days: 7, location_id: (S.defaults || {}).location_id }).then(r => {
     const el = $("#soon"); if (!el) return;
     const days = r.days.filter(d => d.free > 0).slice(0, 3);
     if (!days.length) { el.textContent = "今週は満枠です。次週以降をご確認ください。"; return; }
@@ -227,7 +227,7 @@ function renderHome() {
     const x = up.find(u => u.id === id); if (!x) return;
     const u = d => new Date(d).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
     const end = new Date(new Date(x.start_at).getTime() + x.duration_minutes * 6e4);
-    const title = S.store.name + (x.menu ? " " + x.menu : ""), memo = "予約の変更・キャンセルはLINEから";
+    const title = (x.location ? x.location.name : S.store.name) + (x.menu ? " " + x.menu : "") + (x.staff ? " 担当" + x.staff.name : ""), memo = "予約の変更・キャンセルはLINEから";
     $("#caltitle").textContent = fmtDT(x.start_at) + " をカレンダーに追加"; $("#calsheet").classList.remove("hide");
     $("#cal-g").onclick = () => ext("https://calendar.google.com/calendar/render?action=TEMPLATE&text=" + encodeURIComponent(title) + "&dates=" + u(x.start_at) + "/" + u(end) + "&details=" + encodeURIComponent(memo));
     $("#cal-o").onclick = () => ext("https://outlook.live.com/calendar/0/deeplink/compose?path=/calendar/action/compose&rru=addevent&subject=" + encodeURIComponent(title) + "&startdt=" + encodeURIComponent(new Date(x.start_at).toISOString()) + "&enddt=" + encodeURIComponent(end.toISOString()) + "&body=" + encodeURIComponent(memo));
@@ -265,10 +265,15 @@ async function renderBook(rescheduleId = null) {
   view = "book";
   document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b.dataset.v === "book"));
   const reB = rescheduleId ? S.upcoming.find(x => x.id === rescheduleId) : null;
-  bookState = { date: bookState.date || today(), from: bookState.from || today(), duration: reB ? reB.duration_minutes : S.store.default_duration, slot: null, re: rescheduleId };
-  app.innerHTML = `<div class="card"><h2>${reB ? "日時変更：" + fmtDT(reB.start_at) + " →" : "予約する"}</h2>
+  const dflt = S.defaults || {};
+  bookState = { date: bookState.date || today(), from: bookState.from || today(), duration: reB ? reB.duration_minutes : S.store.default_duration, slot: null, re: rescheduleId,
+    loc: reB ? (reB.location_id || dflt.location_id) : (bookState.loc || dflt.location_id || (S.locations[0] || {}).id), staff: reB ? (reB.nominated ? reB.staff_id : "") : (bookState.staff !== undefined ? bookState.staff : (dflt.staff_id || "")) };
+  const locs = S.locations || [], staffsAt = id => (S.staffs || []).filter(x => x.locations.includes(id));
+  app.innerHTML = `<div class="card"><h2>${reB ? "予約の変更：" + fmtDT(reB.start_at) + " →" : "予約する"}</h2>${reB ? `<div class="sub">日時の<wbr>ほか、<wbr>店舗・<wbr>担当の<wbr>指名も<wbr>変えられます。<wbr>同じ<wbr>日時の<wbr>まま<wbr>担当だけ<wbr>変える<wbr>場合も<wbr>時間を<wbr>選び直して<wbr>ください。</div>` : ""}
     ${reB ? "" : `<label>時間</label><select id="bdur">${[30,45,60,90].map(m => `<option value="${m}" ${m===bookState.duration?"selected":""}>${m}分</option>`).join("")}</select>
     <label>メニュー</label><select id="bmenu"><option>パーソナル</option><option>体験</option><option>カウンセリング</option></select>`}
+    ${locs.length > 1 ? `<label>店舗</label><div class="slots" id="locs">${locs.map(l => `<button data-l="${l.id}" class="${l.id===bookState.loc?"sel":""}">${esc(l.name)}</button>`).join("")}</div>` : ""}
+    <label>担当の<wbr>指名</label><select id="bstaff"></select>
     <label>空き状況</label>
     <div class="legend"><span><i style="background:#dcfce7"></i>余裕あり</span><span><i style="background:#fef9c3"></i>残りわずか</span><span><i style="background:#fee2e2"></i>満枠</span></div>
     <div class="days" id="days"></div>
@@ -277,6 +282,10 @@ async function renderBook(rescheduleId = null) {
     ${reB ? "" : `<label>ご要望<wbr>（任意）</label><textarea id="bnote" rows="2"></textarea>`}
     <div style="margin-top:14px"><button id="bgo" disabled>${reB ? "この日時に変更する" : "この日時で予約する"}</button></div></div>`;
   let avail = [];
+  const drawStaff = () => { const list = staffsAt(bookState.loc); $("#bstaff").innerHTML = `<option value="">指名な<wbr>し<wbr>（空いている<wbr>担当）</option>` + list.map(x => `<option value="${x.id}" ${x.id===bookState.staff?"selected":""}>${esc(x.name)}</option>`).join(""); if (bookState.staff && !list.some(x => x.id === bookState.staff)) { bookState.staff = ""; $("#bstaff").value = ""; } };
+  drawStaff();
+  $("#bstaff").onchange = () => { bookState.staff = $("#bstaff").value; bookState.slot = null; $("#bgo").disabled = true; loadAvail(); };
+  if (locs.length > 1) $("#locs").querySelectorAll("button").forEach(b => b.onclick = () => { bookState.loc = b.dataset.l; $("#locs").querySelectorAll("button").forEach(x => x.classList.toggle("sel", x === b)); drawStaff(); bookState.slot = null; $("#bgo").disabled = true; loadAvail(); });
   const maxDay = new Date(Date.now() + S.store.booking_open_days * 864e5).toISOString().slice(0, 10);
   const level = d => !d.open || d.date > maxDay ? "na" : d.free === 0 ? "l1" : d.free / Math.max(d.total, 1) < 0.34 || d.free <= 2 ? "l2" : "l3";
   const drawDays = () => {
@@ -304,7 +313,7 @@ async function renderBook(rescheduleId = null) {
   const loadAvail = async () => {
     $("#days").innerHTML = `<div class="sub" style="grid-column:1/-1">読み込み中…</div>`;
     try {
-      const r = await api("availability", { from: bookState.from, days: 14, duration: bookState.duration });
+      const r = await api("availability", { from: bookState.from, days: 14, duration: bookState.duration, location_id: bookState.loc, staff_id: bookState.staff || "" });
       avail = r.days;
       // 選択日が範囲外・満枠なら、範囲内で最初の空き日に寄せる
       const cur = avail.find(x => x.date === bookState.date);
@@ -320,8 +329,8 @@ async function renderBook(rescheduleId = null) {
     $("#bgo").disabled = true;
     try {
       let made = null;
-      if (reB) made = await api("reschedule", { booking_id: reB.id, start_at: bookState.slot });
-      else made = await api("book", { start_at: bookState.slot, duration: bookState.duration, menu: $("#bmenu").value, note: $("#bnote").value });
+      if (reB) made = await api("reschedule", { booking_id: reB.id, start_at: bookState.slot, location_id: bookState.loc, staff_id: bookState.staff || "" });
+      else made = await api("book", { start_at: bookState.slot, duration: bookState.duration, menu: $("#bmenu").value, note: $("#bnote").value, location_id: bookState.loc, staff_id: bookState.staff || "" });
       alert((reB ? "変更" : "予約") + "しました：" + fmtDT(bookState.slot) + "\nカレンダーに追加する場合は次の画面で選べます。");
       view = "home"; await load();
       const bid = (made && made.booking && made.booking.id) || (reB && reB.id);

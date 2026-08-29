@@ -53,8 +53,19 @@
         <button id="bk-new" style="width:100%;margin-bottom:8px">＋ 予約を追加</button>
         <div class="days" id="days"></div>
         <div class="seg" style="margin-top:8px"><button data-who="me" class="on">自分の予定</button><button data-who="all">店舗全体</button></div>
+        <div class="seg hide" id="locseg" style="margin-top:6px"></div>
         <div class="stat" id="stat"></div>
         <div id="bk-list"><div class="sub">読み込み中…</div></div>
+      </div>
+      <div class="card hide" id="bk-editcard">
+        <h2>予約の変更</h2>
+        <div class="sub" id="be-title"></div>
+        <div class="row"><div style="flex:1"><label>日付</label><input id="be-date" type="date"></div><div style="flex:1"><label>開始</label><select id="be-time"></select></div></div>
+        <div class="row"><div style="flex:1"><label>店舗</label><select id="be-loc"></select></div><div style="flex:1"><label>担当</label><select id="be-staff"></select></div></div>
+        <label class="row" style="gap:6px"><input type="checkbox" id="be-nom" style="width:auto"> 顧客からの指名</label>
+        <div class="msg" id="be-msg"></div>
+        <div class="row"><button class="ghost" id="be-cancel" style="flex:1">閉じる</button><button id="be-save" style="flex:2">変更して通知</button></div>
+        <div class="sub">担当や店舗が変わると顧客へLINE／メールで通知が届きます。キャンセルはiPhoneアプリから行います。</div>
       </div>
       <div class="card hide" id="bk-form">
         <h2>予約を追加</h2>
@@ -70,6 +81,8 @@
         <div class="sub" id="bf-line"></div>
         <div class="row"><div style="flex:1"><label>日付</label><input id="bf-date" type="date"></div><div style="flex:1"><label>開始</label><select id="bf-time"></select></div></div>
         <div class="row"><div style="flex:1"><label>時間</label><select id="bf-dur"><option value="30">30分</option><option value="45">45分</option><option value="60" selected>60分</option><option value="75">75分</option><option value="90">90分</option><option value="120">120分</option></select></div><div style="flex:1"><label>担当</label><select id="bf-staff"></select></div></div>
+        <div id="bf-locwrap" class="hide"><label>店舗</label><select id="bf-loc"></select></div>
+        <label class="row" style="gap:6px"><input type="checkbox" id="bf-nom" style="width:auto"> 顧客からの指名として登録</label>
         <label>メニュー（任意）</label><input id="bf-menu" placeholder="例）パーソナル60分">
         <label>備考（顧客に見えます・任意）</label><input id="bf-note">
         <div class="msg" id="bf-msg"></div>
@@ -135,6 +148,20 @@
         <div class="msg" id="set-msg"></div>
         <button id="set-save" style="width:100%">保存</button>
       </div>
+      <div class="card" id="loc-card">
+        <h2>店舗（拠点）と担当の優先順位</h2>
+        <div class="sub" style="margin-bottom:6px">「指名なし」の予約は、各店舗の並び順で上から空いている人に自動で割り当てます。並びは ▲▼ で変更。</div>
+        <div id="loc-list"></div>
+        <button class="ghost sm" id="loc-add" style="margin-top:6px">＋ 店舗を追加</button>
+      </div>
+      <div class="card" id="shift-card">
+        <h2>勤務予定</h2>
+        <div class="sub" style="margin-bottom:6px">未登録のスタッフは「所属店舗の営業時間すべてに対応可」として扱います。曜日ごとの週次予定と、特定日の予定（週次より優先・店舗「休み」で休日）を登録できます。</div>
+        <label>スタッフ</label><select id="sh-staff"></select>
+        <div id="sh-list"></div>
+        <div class="row" style="margin-top:6px;flex-wrap:wrap"><button class="ghost sm" id="sh-add-w">＋ 曜日の予定</button><button class="ghost sm" id="sh-add-d">＋ 特定日の予定</button><button class="sm" id="sh-save">保存</button></div>
+        <div class="msg" id="sh-msg"></div>
+      </div>
       <div class="card">
         <button class="ghost" style="width:100%" id="logout">ログアウト</button>
       </div>
@@ -156,7 +183,7 @@ const SB_URL="https://rcsaydtknneqyoznanbw.supabase.co", ANON="eyJhbGciOiJIUzI1N
 const sb = supabase.createClient(SB_URL, ANON, { auth:{ persistSession:true, storageKey:"yoyaku-staff" } });
 const $ = s => document.querySelector(s);
 let ME=null, CUSTS=[], view="sched";
-let SCH={ base:null, sel:null, who:"me", data:null };
+let SCH={ base:null, sel:null, who:"me", loc:"all", data:null };
 
 async function ops(action, extra={}) {
   const { data:{ session } } = await sb.auth.getSession();
@@ -214,7 +241,10 @@ async function loadSched(){
 function renderSched(){
   const D=SCH.data; if(!D) return;
   const today=ymd(new Date()); const days=[...Array(7)].map((_,i)=>{ const d=new Date(SCH.base); d.setDate(d.getDate()+i); return d; });
-  const live = D.bookings.filter(b=>b.status==="booked"||b.status==="done");
+  const locs=(D.locations||[]).filter(l=>l.active); const locName=id=>(D.locations||[]).find(l=>l.id===id)?.name||"";
+  if(locs.length>1){ $("#locseg").classList.remove("hide"); $("#locseg").innerHTML=`<button data-l="all" class="${SCH.loc==="all"?"on":""}">全店舗</button>`+locs.map(l=>`<button data-l="${l.id}" class="${SCH.loc===l.id?"on":""}">${l.name}</button>`).join(""); document.querySelectorAll("#locseg button").forEach(b=>b.onclick=()=>{ SCH.loc=b.dataset.l; renderSched(); }); }
+  const inLoc = b => SCH.loc==="all" || b.location_id===SCH.loc;
+  const live = D.bookings.filter(b=>(b.status==="booked"||b.status==="done") && inLoc(b));
   const mine = b => b.staff_id===D.me.id || !b.staff_id; // 未割当は自分の予定にも表示
   const cnt = d => { const k=ymd(d); return live.filter(b=>ymd(new Date(b.start_at))===k && (SCH.who==="me"?mine(b):true)).length; };
   $("#days").innerHTML = days.map(d=>{ const k=ymd(d), w=d.getDay(); const n=cnt(d);
@@ -223,7 +253,7 @@ function renderSched(){
   $("#sched-title").textContent = `${days[0].getMonth()+1}/${days[0].getDate()}〜${days[6].getMonth()+1}/${days[6].getDate()} の予約状況`;
   // 週集計
   const wkMine = live.filter(mine).length, wkAll = live.length;
-  const dayList = D.bookings.filter(b=>ymd(new Date(b.start_at))===SCH.sel && (SCH.who==="me"?mine(b):true));
+  const dayList = D.bookings.filter(b=>ymd(new Date(b.start_at))===SCH.sel && inLoc(b) && (SCH.who==="me"?mine(b):true));
   const dayLive = dayList.filter(b=>b.status==="booked"||b.status==="done");
   const openMin = (t=>{const [h,m]=t.split(":").map(Number);return h*60+m;});
   const slots = Math.max(0, Math.floor((openMin(D.store.close_time)-openMin(D.store.open_time))/D.store.default_duration));
@@ -231,13 +261,36 @@ function renderSched(){
   $("#stat").innerHTML = `<div><b>${dayLive.length}</b><span>${SCH.sel===today?"今日":SCH.sel.slice(5).replace("-","/")} の予約</span></div><div><b>${Math.round(busyMin/60*10)/10}h</b><span>稼働時間</span></div><div><b>${SCH.who==="me"?wkMine:wkAll}</b><span>今週の件数${SCH.who==="all"?"（全員）":""}</span></div>`;
   const nameOf = id => (D.staffs.find(s=>s.id===id)||{}).name || "未割当";
   $("#bk-list").innerHTML = dayList.map(b=>{ const st=STATUS[b.status]; const off=b.status!=="booked"&&b.status!=="done";
-    return `<div class="bk ${mine(b)?"mine":""} ${off?"off":""}"><div class="t">${hm(b.start_at)}<br><span class="sub" style="font-weight:400">〜${addMin(b.start_at,b.duration_minutes)}</span></div><div class="m"><div>${b.customer_name||"（顧客名なし）"} ${st?`<span class="tag warn">${st}</span>`:""}${b.status==="done"?`<span class="tag ok">完了</span>`:""}</div><div class="sub">${SCH.who==="all"?`担当 ${nameOf(b.staff_id)}${b.staff_id===D.me.id?"（自分）":""}・`:(b.staff_id?"":"担当未割当・")}${b.menu||D.store.default_duration+"分"}${b.note?`・備考: ${b.note}`:""}</div></div></div>`; }).join("")
+    return `<div class="bk ${mine(b)?"mine":""} ${off?"off":""}"><div class="t">${hm(b.start_at)}<br><span class="sub" style="font-weight:400">〜${addMin(b.start_at,b.duration_minutes)}</span></div><div class="m"><div>${b.customer_name||"（顧客名なし）"} ${st?`<span class="tag warn">${st}</span>`:""}${b.status==="done"?`<span class="tag ok">完了</span>`:""}</div><div class="sub">${locs.length>1&&SCH.loc==="all"?`${locName(b.location_id)}・`:""}${SCH.who==="all"?`担当 ${nameOf(b.staff_id)}${b.staff_id===D.me.id?"（自分）":""}${b.nominated?"（指名）":""}・`:(b.staff_id?(b.nominated?"指名・":""):"担当未割当・")}${b.menu||D.store.default_duration+"分"}${b.note?`・備考: ${b.note}`:""}</div></div>${b.status==="booked"?`<div><button class="sm ghost bk-edit" data-id="${b.id}">変更</button></div>`:""}</div>`; }).join("")
     || `<div class="sub">この日の予約はありません。${SCH.who==="me"?"（店舗全体は上の切替で確認できます）":""}</div>`;
+  document.querySelectorAll(".bk-edit").forEach(x=>x.onclick=()=>openEdit(x.dataset.id));
 }
 $("#wk-prev").onclick=()=>{ SCH.base.setDate(SCH.base.getDate()-7); SCH.sel=ymd(SCH.base); loadSched(); };
 $("#wk-next").onclick=()=>{ SCH.base.setDate(SCH.base.getDate()+7); SCH.sel=ymd(SCH.base); loadSched(); };
 $("#wk-today").onclick=()=>{ SCH.base=weekStart(new Date()); SCH.sel=ymd(new Date()); loadSched(); };
 document.querySelectorAll(".seg button").forEach(b=> b.onclick=()=>{ SCH.who=b.dataset.who; document.querySelectorAll(".seg button").forEach(x=>x.classList.toggle("on",x===b)); renderSched(); });
+
+// 予約変更（担当・店舗・日時）
+let BE={ id:null };
+function openEdit(id){
+  const D=SCH.data, b=D.bookings.find(x=>x.id===id); if(!b) return; BE.id=id;
+  const d=new Date(b.start_at); $("#be-title").textContent=`${b.customer_name}・現在 ${hm(b.start_at)}〜${addMin(b.start_at,b.duration_minutes)}`;
+  $("#be-date").value=ymd(d); $("#be-time").innerHTML=timeOptions(); $("#be-time").value=hm(b.start_at);
+  $("#be-loc").innerHTML=(D.locations||[]).filter(l=>l.active).map(l=>`<option value="${l.id}" ${l.id===b.location_id?"selected":""}>${l.name}</option>`).join("");
+  $("#be-staff").innerHTML=`<option value="">自動（優先順位で割当）</option>`+D.staffs.filter(s=>s.active).map(s=>`<option value="${s.id}" ${s.id===b.staff_id?"selected":""}>${s.name}</option>`).join("");
+  $("#be-nom").checked=!!b.nominated; $("#be-msg").textContent=""; $("#be-msg").className="msg";
+  $("#bk-editcard").classList.remove("hide"); $("#bk-editcard").scrollIntoView({behavior:"smooth",block:"nearest"});
+}
+$("#be-cancel").onclick=()=>$("#bk-editcard").classList.add("hide");
+$("#be-save").onclick=async()=>{
+  const msg=(t,c)=>{ $("#be-msg").textContent=t; $("#be-msg").className="msg "+(c||""); };
+  $("#be-save").disabled=true; msg("変更中…");
+  try{ const start_at=new Date(`${$("#be-date").value}T${$("#be-time").value}:00+09:00`).toISOString();
+    await ops("booking_update",{ booking_id:BE.id, start_at, location_id:$("#be-loc").value, staff_id:$("#be-staff").value, nominated:$("#be-nom").checked });
+    msg("変更しました","ok"); await loadSched(); setTimeout(()=>$("#bk-editcard").classList.add("hide"),1200);
+  }catch(e){ msg(e.message,"err"); }
+  $("#be-save").disabled=false;
+};
 
 // 予約追加フォーム
 let BF={ cid:null, cust:null };
@@ -247,7 +300,9 @@ function openForm(){
   BF={cid:null,cust:null}; $("#bf-q").value=""; $("#bf-cands").innerHTML=""; $("#bf-cid").value=""; $("#bf-email").value=""; $("#bf-line").textContent=""; $("#bf-newc").classList.add("hide"); $("#bf-nname").value=""; $("#bf-nphone").value="";
   $("#bf-date").value=SCH.sel||ymd(new Date()); $("#bf-time").innerHTML=timeOptions(); $("#bf-dur").value=String(SCH.data?.store?.default_duration||60);
   $("#bf-menu").value=""; $("#bf-note").value=""; $("#bf-msg").textContent=""; $("#bf-msg").className="msg";
-  const st=SCH.data?.staffs||[]; $("#bf-staff").innerHTML = st.filter(s=>s.active).map(s=>`<option value="${s.id}" ${s.id===SCH.data.me.id?"selected":""}>${s.name}</option>`).join("");
+  const st=SCH.data?.staffs||[]; $("#bf-staff").innerHTML = `<option value="">自動（店舗の優先順位で割当）</option>`+st.filter(s=>s.active).map(s=>`<option value="${s.id}" ${s.id===SCH.data.me.id?"selected":""}>${s.name}</option>`).join("");
+  const locs=(SCH.data?.locations||[]).filter(l=>l.active); $("#bf-locwrap").classList.toggle("hide", locs.length<=1);
+  $("#bf-loc").innerHTML = locs.map(l=>`<option value="${l.id}" ${(SCH.loc!=="all"?SCH.loc:(SCH.data.me.locations||[])[0])===l.id?"selected":""}>${l.name}</option>`).join(""); $("#bf-nom").checked=false;
   $("#bf-form").classList.remove("hide"); $("#bf-q").focus();
 }
 $("#bk-new").onclick=openForm; $("#bf-cancel").onclick=()=>$("#bf-form").classList.add("hide");
@@ -268,7 +323,7 @@ $("#bf-save").onclick=async()=>{
   try{
     if(!cid){ const j=await ops("customer_create",{ name:$("#bf-nname").value.trim(), phone:$("#bf-nphone").value.trim(), email }); cid=j.customer.id; }
     const start_at=new Date(`${date}T${time}:00+09:00`).toISOString();
-    const j=await ops("booking_create",{ customer_id:cid, start_at, duration_minutes:Number($("#bf-dur").value), menu:$("#bf-menu").value.trim(), note:$("#bf-note").value.trim(), email, staff_id:$("#bf-staff").value });
+    const j=await ops("booking_create",{ customer_id:cid, start_at, duration_minutes:Number($("#bf-dur").value), menu:$("#bf-menu").value.trim(), note:$("#bf-note").value.trim(), email, staff_id:$("#bf-staff").value, location_id:$("#bf-loc").value||undefined, nominated:$("#bf-nom").checked });
     msg(`登録しました。控え：LINE ${j.notify.line?"送信":"なし（未連携）"} / メール ${j.notify.mail?"送信":"なし"}`,"ok");
     SCH.sel=date; SCH.base=weekStart(new Date(date+"T00:00:00")); await Promise.all([loadSched(), loadCusts()]);
     setTimeout(()=>$("#bf-form").classList.add("hide"),1500);
@@ -323,6 +378,64 @@ $("#msg-send").onclick=async()=>{
   $("#msg-body").value=""; await refreshRoom();
 };
 
+// 店舗（拠点）・優先順位・勤務予定
+let LOC={ data:null, shifts:{}, cur:null };
+async function loadLoc(){ try{ LOC.data=await ops("locations"); LOC.shifts={}; for(const sh of LOC.data.shifts){ (LOC.shifts[sh.staff_id]=LOC.shifts[sh.staff_id]||[]).push(sh); } renderLoc(); renderShiftStaff(); }catch(e){ $("#loc-list").innerHTML=`<div class="msg err">${e.message}</div>`; } }
+function renderLoc(){
+  const D=LOC.data, owner=D.role==="owner";
+  $("#loc-add").classList.toggle("hide",!owner);
+  $("#loc-list").innerHTML = D.locations.map(l=>{
+    const members=D.staffs.filter(s=>s.active&&s.staff_location.some(a=>a.location_id===l.id)).sort((a,b)=>a.staff_location.find(x=>x.location_id===l.id).priority-b.staff_location.find(x=>x.location_id===l.id).priority);
+    const others=D.staffs.filter(s=>s.active&&!members.includes(s));
+    return `<div style="border-top:1px solid var(--line);padding:10px 0">
+      <div class="row" style="justify-content:space-between"><div><b>${l.name}</b>${l.active?"":' <span class="tag warn">停止中</span>'} <span class="sub">同時受入 ${l.capacity}</span></div>${owner?`<button class="ghost sm loc-edit" data-id="${l.id}">編集</button>`:""}</div>
+      <div style="margin-top:4px">${members.map((s,i)=>`<div class="row" style="justify-content:space-between;padding:3px 0"><span>${i+1}. ${s.name}</span>${owner?`<span><button class="ghost sm pr" data-l="${l.id}" data-s="${s.id}" data-d="-1">▲</button> <button class="ghost sm pr" data-l="${l.id}" data-s="${s.id}" data-d="1">▼</button> <button class="ghost sm pr-rm" data-l="${l.id}" data-s="${s.id}">外す</button></span>`:""}</div>`).join("")||'<div class="sub">所属スタッフなし（この店舗では予約を受けられません）</div>'}
+      ${owner&&others.length?`<div class="row" style="margin-top:4px"><select class="pr-addsel" data-l="${l.id}">${others.map(s=>`<option value="${s.id}">${s.name}</option>`).join("")}</select><button class="ghost sm pr-add" data-l="${l.id}">所属に追加</button></div>`:""}
+    </div>`; }).join("");
+  const save=async(lid,ids)=>{ try{ await ops("priority_set",{ location_id:lid, staff_ids:ids }); await loadLoc(); await loadSched(); }catch(e){ alert(e.message); } };
+  const idsOf=lid=>D.staffs.filter(s=>s.active&&s.staff_location.some(a=>a.location_id===lid)).sort((a,b)=>a.staff_location.find(x=>x.location_id===lid).priority-b.staff_location.find(x=>x.location_id===lid).priority).map(s=>s.id);
+  document.querySelectorAll(".pr").forEach(b=>b.onclick=()=>{ const ids=idsOf(b.dataset.l), i=ids.indexOf(b.dataset.s), j=i+Number(b.dataset.d); if(j<0||j>=ids.length) return; [ids[i],ids[j]]=[ids[j],ids[i]]; save(b.dataset.l,ids); });
+  document.querySelectorAll(".pr-rm").forEach(b=>b.onclick=()=>{ if(!confirm("この店舗の所属から外します。よろしいですか？")) return; save(b.dataset.l, idsOf(b.dataset.l).filter(x=>x!==b.dataset.s)); });
+  document.querySelectorAll(".pr-add").forEach(b=>b.onclick=()=>{ const sel=document.querySelector(`.pr-addsel[data-l="${b.dataset.l}"]`); save(b.dataset.l,[...idsOf(b.dataset.l), sel.value]); });
+  document.querySelectorAll(".loc-edit").forEach(b=>b.onclick=()=>editLoc(D.locations.find(l=>l.id===b.dataset.id)));
+}
+async function editLoc(l){
+  const name=prompt("店舗名", l?l.name:""); if(name===null) return; if(!name.trim()) return alert("店舗名を入力してください");
+  const cap=prompt("同時に受けられる予約数（部屋・ベッド数）", l?l.capacity:1); if(cap===null) return;
+  const address=prompt("住所（任意）", l?l.address||"":""); if(address===null) return;
+  let active=true; if(l){ active=confirm("この店舗で予約を受け付けますか？（キャンセル＝停止）"); }
+  try{ await ops("location_save",{ id:l?l.id:undefined, name:name.trim(), capacity:Number(cap)||1, address, active, sort:l?l.sort:(LOC.data.locations.length) }); await loadLoc(); await loadSched(); }catch(e){ alert(e.message); }
+}
+$("#loc-add").onclick=()=>editLoc(null);
+function renderShiftStaff(){
+  const D=LOC.data, owner=D.role==="owner", me=SCH.data?.me?.id;
+  const list=D.staffs.filter(s=>s.active&&(owner||s.id===me));
+  $("#sh-staff").innerHTML=list.map(s=>`<option value="${s.id}" ${s.id===(LOC.cur||me)?"selected":""}>${s.name}</option>`).join("");
+  LOC.cur=$("#sh-staff").value; renderShifts();
+}
+$("#sh-staff").onchange=()=>{ LOC.cur=$("#sh-staff").value; renderShifts(); };
+const WD="日月火水木金土";
+function renderShifts(){
+  const rows=LOC.shifts[LOC.cur]||[]; const locs=LOC.data.locations.filter(l=>l.active);
+  const locSel=(v)=>`<select class="sh-loc">${locs.map(l=>`<option value="${l.id}" ${l.id===v?"selected":""}>${l.name}</option>`).join("")}<option value="" ${v?"":"selected"}>休み</option></select>`;
+  const t=(v)=>String(v||"").slice(0,5);
+  $("#sh-list").innerHTML = rows.map((r,i)=>`<div class="row sh-row" data-i="${i}" style="margin:4px 0;flex-wrap:wrap">
+    ${r.on_date!==null&&r.on_date!==undefined&&r.on_date!==""?`<input type="date" class="sh-date" value="${r.on_date}" style="flex:1 1 120px">`:`<select class="sh-wd" style="flex:1 1 70px">${[1,2,3,4,5,6,0].map(w=>`<option value="${w}" ${w===r.weekday?"selected":""}>${WD[w]}曜</option>`).join("")}</select>`}
+    <span style="flex:1 1 110px">${locSel(r.location_id)}</span>
+    <input type="time" class="sh-s" value="${t(r.start_time)||"10:00"}" style="flex:1 1 90px"><span>〜</span><input type="time" class="sh-e" value="${t(r.end_time)||"22:00"}" style="flex:1 1 90px">
+    <button class="ghost sm sh-del">削除</button></div>`).join("") || '<div class="sub">登録なし＝所属店舗の営業時間すべてに対応可</div>';
+  document.querySelectorAll(".sh-del").forEach(b=>b.onclick=()=>{ collectShifts(); LOC.shifts[LOC.cur].splice(Number(b.closest(".sh-row").dataset.i),1); renderShifts(); });
+}
+function collectShifts(){
+  const rows=[...document.querySelectorAll(".sh-row")].map(el=>({ on_date:el.querySelector(".sh-date")?.value||null, weekday:el.querySelector(".sh-wd")?Number(el.querySelector(".sh-wd").value):null, location_id:el.querySelector(".sh-loc").value||null, start_time:el.querySelector(".sh-s").value||"00:00", end_time:el.querySelector(".sh-e").value||"23:59" }));
+  LOC.shifts[LOC.cur]=rows; return rows;
+}
+$("#sh-add-w").onclick=()=>{ collectShifts(); LOC.shifts[LOC.cur].push({ weekday:1, on_date:null, location_id:(LOC.data.locations[0]||{}).id, start_time:"10:00", end_time:"22:00" }); renderShifts(); };
+$("#sh-add-d").onclick=()=>{ collectShifts(); LOC.shifts[LOC.cur].push({ weekday:null, on_date:ymd(new Date()), location_id:(LOC.data.locations[0]||{}).id, start_time:"10:00", end_time:"22:00" }); renderShifts(); };
+$("#sh-save").onclick=async()=>{ const rows=collectShifts(); $("#sh-msg").textContent="保存中…"; $("#sh-msg").className="msg";
+  try{ const j=await ops("shifts_set",{ staff_id:LOC.cur, shifts:rows }); $("#sh-msg").textContent=`保存しました（${j.count}件）`; $("#sh-msg").className="msg ok"; await loadLoc(); await loadSched(); }
+  catch(e){ $("#sh-msg").textContent=e.message; $("#sh-msg").className="msg err"; } };
+
 // 配信
 $("#cast-count").onclick = async ()=>{
   $("#cast-msg").textContent=""; $("#cast-msg").className="msg";
@@ -358,13 +471,13 @@ function render(){
 async function boot(){
   try{ const j=await ops("settings_get"); ME={ role:j.role };
     const owner = j.role==="owner";
-    $("#nav-cast").classList.toggle("hide", !owner); $("#nav-set").classList.toggle("hide", !owner);
+    $("#nav-cast").classList.toggle("hide", !owner); document.querySelector("#view-set .card").classList.toggle("hide", !owner);
     $("#review-url").value = j.settings.google_review_url||"";
     $("#review-tpl").value = j.settings.review_msg_template||"";
     $("#hello").textContent = owner ? "管理（オーナー）" : "顧客対応";
     $("#login").classList.add("hide"); $("#app").classList.remove("hide"); $("#nav").classList.remove("hide");
     SCH.base=weekStart(new Date()); SCH.sel=ymd(new Date());
-    await Promise.all([loadSched(), loadCusts()]); loadThreads(); setInterval(loadThreads, 30000);
+    await Promise.all([loadSched(), loadCusts()]); loadThreads(); loadLoc(); setInterval(loadThreads, 30000);
   }catch(e){ $("#lmsg").textContent=e.message; }
 }
 sb.auth.getSession().then(({data:{session}})=>{ if(session) boot(); });
