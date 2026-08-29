@@ -28,6 +28,12 @@
   .bk .t{flex:0 0 78px;font-weight:700;font-variant-numeric:tabular-nums}.bk.mine .t{color:var(--acc)}.bk.off{opacity:.5}.bk .m{flex:1}
   .seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}.seg button{flex:1;background:var(--bg);color:var(--sub);border-radius:0;padding:8px 0;font-size:13px}.seg button.on{background:var(--acc);color:#fff}
   .stat{display:flex;gap:8px;margin:8px 0}.stat div{flex:1;background:var(--bg);border-radius:10px;padding:8px;text-align:center}.stat b{display:block;font-size:18px}.stat span{font-size:11px;color:var(--sub)}
+  .th{border-top:1px solid var(--line);padding:10px 0;display:flex;justify-content:space-between;align-items:center;gap:10px;cursor:pointer}.th:first-child{border-top:none}
+  .badge{background:var(--danger);color:#fff;border-radius:999px;font-size:11px;padding:1px 7px;font-weight:700}
+  .chat{display:flex;flex-direction:column;gap:6px;max-height:55vh;overflow-y:auto;padding:4px 0}
+  .bub{max-width:82%;padding:8px 11px;border-radius:14px;font-size:14px;white-space:pre-wrap;word-break:break-word}
+  .bub.c{align-self:flex-start;background:var(--bg);border:1px solid var(--line)}.bub.s{align-self:flex-end;background:var(--acc);color:#fff}
+  .bub .ts{display:block;font-size:10px;opacity:.7;margin-top:2px}
   .hide{display:none}.msg{font-size:13px;margin:8px 0;min-height:18px}.msg.err{color:var(--danger)}.msg.ok{color:var(--ok)}
 </style></head><body>
 <div class="wrap">
@@ -81,6 +87,20 @@
       <p class="sub">「口コミ案内」は、書いてくれそうな方を選んで押すとGoogle口コミのお願いを1通だけ送ります。連投は防止されます。</p>
     </div>
 
+    <div id="view-msg" class="hide">
+      <div class="card" id="msg-threads">
+        <div class="row" style="justify-content:space-between"><h2>メッセージ</h2><span class="sub" id="msg-unread"></span></div>
+        <input id="msg-q" placeholder="名前で絞り込み" style="margin-bottom:6px">
+        <div id="th-list"><div class="sub">読み込み中…</div></div>
+      </div>
+      <div class="card hide" id="msg-room">
+        <div class="row" style="justify-content:space-between;margin-bottom:6px"><button class="ghost sm" id="msg-back">‹ 一覧</button><h2 style="margin:0" id="msg-name"></h2><span class="sub" id="msg-linked"></span></div>
+        <div class="chat" id="chat"></div>
+        <div class="row" style="margin-top:8px"><textarea id="msg-body" style="min-height:44px;flex:1" placeholder="メッセージ"></textarea><button id="msg-send">送信</button></div>
+        <div class="sub">送ると顧客のLINEに「新しいメッセージがあります」の通知が届きます（30分以内の連投は通知1回にまとまります）。</div>
+      </div>
+    </div>
+
     <div id="view-cast" class="hide">
       <div class="card">
         <h2>一斉・セグメント配信</h2>
@@ -124,6 +144,7 @@
   <nav id="nav" class="hide">
     <button data-v="sched" class="on">予約</button>
     <button data-v="cust">顧客</button>
+    <button data-v="msg">メッセージ<span id="nav-badge" class="badge hide" style="margin-left:4px"></span></button>
     <button data-v="cast" id="nav-cast">配信</button>
     <button data-v="set" id="nav-set">設定</button>
   </nav>
@@ -163,9 +184,10 @@ function renderCusts(){
     const linked = c.linked ? "" : `<span class="tag warn">LINE未連携</span>`;
     const tk = c.ticket_remaining>0 ? `<span class="tag">券${c.ticket_remaining}</span>` : "";
     const done = c.review_requested_at ? `<span class="tag ok">案内済 ${fmtDate(c.review_requested_at)}</span>` : "";
-    const btn = c.linked ? `<button class="sm review" data-id="${c.id}" data-name="${c.name}">口コミ案内</button>` : "";
+    const btn = `<button class="sm ghost msgto" data-id="${c.id}">メッセージ</button>` + (c.linked ? ` <button class="sm review" data-id="${c.id}" data-name="${c.name}">口コミ案内</button>` : "");
     return `<div class="cust"><div><div>${c.name}</div><div class="sub">最終 ${daysAgo(c.last_visit)}・${c.upcoming?"予約あり":"予約なし"} ${linked}${tk}${done}</div></div><div>${btn}</div></div>`;
   }).join("") || `<div class="sub">該当する顧客がいません。</div>`;
+  document.querySelectorAll(".msgto").forEach(b=> b.onclick=()=>{ view="msg"; render(); openRoom(b.dataset.id); });
   document.querySelectorAll(".review").forEach(b=> b.onclick = async ()=>{
     if(!confirm(`${b.dataset.name} さんに口コミのお願いを送ります。よろしいですか？`)) return;
     b.disabled=true;
@@ -254,6 +276,53 @@ $("#bf-save").onclick=async()=>{
   $("#bf-save").disabled=false;
 };
 
+// メッセージ（RLS: 同一店舗のスタッフ全員が読み書き可。trainer権限も同じ）
+let MSG={ cid:null, timer:null, threads:[] };
+const tsf = iso => { const d=new Date(iso), n=new Date(); const same=d.toDateString()===n.toDateString(); return (same?"":`${d.getMonth()+1}/${d.getDate()} `)+`${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`; };
+const esc = t => String(t).replace(/[&<>"]/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
+async function loadThreads(){
+  const sid=SCH.data?.store?.id; if(!sid) return;
+  const { data, error } = await sb.from("message").select("customer_id,sender,body,created_at,read_at").eq("store_id", sid).order("created_at",{ascending:false}).limit(2000);
+  if(error){ $("#th-list").innerHTML=`<div class="msg err">${esc(error.message)}</div>`; return; }
+  const m=new Map();
+  for(const r of data||[]){ const t=m.get(r.customer_id)||{ cid:r.customer_id, last:r, unread:0 }; if(r.sender==="customer"&&!r.read_at) t.unread++; m.set(r.customer_id,t); }
+  MSG.threads=[...m.values()]; renderThreads();
+  const un=MSG.threads.reduce((a,t)=>a+t.unread,0); $("#nav-badge").textContent=un; $("#nav-badge").classList.toggle("hide",!un); $("#msg-unread").textContent = un?`未読 ${un}件`:"";
+}
+function renderThreads(){
+  const q=$("#msg-q").value.trim(); const name=id=>(CUSTS.find(c=>c.id===id)||{}).name||"（退会済み）";
+  const list=MSG.threads.filter(t=>!q||name(t.cid).includes(q));
+  $("#th-list").innerHTML = list.map(t=>`<div class="th" data-id="${t.cid}"><div><div>${esc(name(t.cid))} ${t.unread?`<span class="badge">${t.unread}</span>`:""}</div><div class="sub">${t.last.sender==="staff"?"自分たち: ":""}${esc(t.last.body).slice(0,40)}</div></div><div class="sub">${tsf(t.last.created_at)}</div></div>`).join("")
+    || `<div class="sub">まだやり取りがありません。顧客タブの「メッセージ」から送れます。</div>`;
+  document.querySelectorAll(".th").forEach(el=> el.onclick=()=>openRoom(el.dataset.id));
+}
+$("#msg-q").oninput=renderThreads;
+async function openRoom(cid){
+  MSG.cid=cid; const c=CUSTS.find(x=>x.id===cid)||{name:"顧客"};
+  $("#msg-name").textContent=c.name; $("#msg-linked").textContent=c.linked?"LINE連携済":"LINE未連携（通知は届きません）";
+  $("#msg-threads").classList.add("hide"); $("#msg-room").classList.remove("hide"); $("#chat").innerHTML='<div class="sub">読み込み中…</div>';
+  await refreshRoom(); clearInterval(MSG.timer); MSG.timer=setInterval(refreshRoom, 8000);
+}
+async function refreshRoom(){
+  if(!MSG.cid || view!=="msg") return;
+  const { data, error } = await sb.from("message").select("id,sender,staff_id,body,created_at,read_at").eq("customer_id", MSG.cid).order("created_at").limit(500);
+  if(error) return;
+  const nameOf=id=>((SCH.data?.staffs||[]).find(s=>s.id===id)||{}).name||"スタッフ";
+  const atBottom = $("#chat").scrollHeight-$("#chat").scrollTop-$("#chat").clientHeight<40;
+  $("#chat").innerHTML=(data||[]).map(m=>`<div class="bub ${m.sender==="staff"?"s":"c"}">${esc(m.body)}<span class="ts">${m.sender==="staff"?nameOf(m.staff_id)+" ":""}${tsf(m.created_at)}</span></div>`).join("")||'<div class="sub">まだメッセージはありません。</div>';
+  if(atBottom||!$("#chat").dataset.init){ $("#chat").scrollTop=$("#chat").scrollHeight; $("#chat").dataset.init="1"; }
+  const unread=(data||[]).filter(m=>m.sender==="customer"&&!m.read_at).map(m=>m.id);
+  if(unread.length){ await sb.from("message").update({ read_at:new Date().toISOString() }).in("id", unread); loadThreads(); }
+}
+$("#msg-back").onclick=()=>{ clearInterval(MSG.timer); MSG.cid=null; $("#msg-room").classList.add("hide"); $("#msg-threads").classList.remove("hide"); delete $("#chat").dataset.init; loadThreads(); };
+$("#msg-send").onclick=async()=>{
+  const body=$("#msg-body").value.trim(); if(!body) return; $("#msg-send").disabled=true;
+  const { error } = await sb.from("message").insert({ store_id:SCH.data.store.id, customer_id:MSG.cid, sender:"staff", staff_id:SCH.data.me.id, body });
+  $("#msg-send").disabled=false;
+  if(error){ alert("送信できませんでした: "+error.message); return; }
+  $("#msg-body").value=""; await refreshRoom();
+};
+
 // 配信
 $("#cast-count").onclick = async ()=>{
   $("#cast-msg").textContent=""; $("#cast-msg").className="msg";
@@ -281,7 +350,8 @@ $("#set-save").onclick = async ()=>{
 
 document.querySelectorAll("nav button").forEach(b=> b.onclick=()=>{ view=b.dataset.v; render(); });
 function render(){
-  ["sched","cust","cast","set"].forEach(v=> $("#view-"+v).classList.toggle("hide", v!==view));
+  if(view==="msg"){ loadThreads(); if(MSG.cid) refreshRoom(); }
+  ["sched","cust","msg","cast","set"].forEach(v=> $("#view-"+v).classList.toggle("hide", v!==view));
   document.querySelectorAll("nav button").forEach(b=> b.classList.toggle("on", b.dataset.v===view));
 }
 
@@ -294,7 +364,7 @@ async function boot(){
     $("#hello").textContent = owner ? "管理（オーナー）" : "顧客対応";
     $("#login").classList.add("hide"); $("#app").classList.remove("hide"); $("#nav").classList.remove("hide");
     SCH.base=weekStart(new Date()); SCH.sel=ymd(new Date());
-    await Promise.all([loadSched(), loadCusts()]);
+    await Promise.all([loadSched(), loadCusts()]); loadThreads(); setInterval(loadThreads, 30000);
   }catch(e){ $("#lmsg").textContent=e.message; }
 }
 sb.auth.getSession().then(({data:{session}})=>{ if(session) boot(); });
