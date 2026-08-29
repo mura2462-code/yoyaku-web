@@ -20,6 +20,14 @@
   .tag.warn{color:var(--danger);border-color:var(--danger)}.tag.ok{color:var(--ok);border-color:var(--ok)}
   nav{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--line);display:flex;padding-bottom:env(safe-area-inset-bottom)}
   nav button{flex:1;background:none;color:var(--sub);border-radius:0;padding:11px 0}nav button.on{color:var(--acc)}
+  .days{display:flex;gap:4px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
+  .days button{flex:0 0 46px;background:var(--bg);color:var(--txt);border:1px solid var(--line);padding:6px 0;font-size:12px;line-height:1.3;font-weight:500}
+  .days button.on{background:var(--acc);color:#fff;border-color:var(--acc)}.days button .n{font-size:15px;font-weight:700;display:block}
+  .days button .c{font-size:10px;color:var(--sub);display:block}.days button.on .c{color:#e0e7ff}.days button.sat .n{color:#2563eb}.days button.sun .n{color:#dc2626}.days button.on .n{color:#fff}
+  .bk{border-top:1px solid var(--line);padding:9px 0;display:flex;gap:10px;align-items:flex-start}.bk:first-child{border-top:none}
+  .bk .t{flex:0 0 78px;font-weight:700;font-variant-numeric:tabular-nums}.bk.mine .t{color:var(--acc)}.bk.off{opacity:.5}.bk .m{flex:1}
+  .seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}.seg button{flex:1;background:var(--bg);color:var(--sub);border-radius:0;padding:8px 0;font-size:13px}.seg button.on{background:var(--acc);color:#fff}
+  .stat{display:flex;gap:8px;margin:8px 0}.stat div{flex:1;background:var(--bg);border-radius:10px;padding:8px;text-align:center}.stat b{display:block;font-size:18px}.stat span{font-size:11px;color:var(--sub)}
   .hide{display:none}.msg{font-size:13px;margin:8px 0;min-height:18px}.msg.err{color:var(--danger)}.msg.ok{color:var(--ok)}
 </style></head><body>
 <div class="wrap">
@@ -33,7 +41,18 @@
 
   <div id="app" class="hide">
     <h1 id="hello"></h1>
-    <div id="view-cust">
+    <div id="view-sched">
+      <div class="card">
+        <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0" id="sched-title">予約状況</h2><div class="row"><button class="ghost sm" id="wk-prev">‹ 前週</button><button class="ghost sm" id="wk-today">今日</button><button class="ghost sm" id="wk-next">翌週 ›</button></div></div>
+        <div class="days" id="days"></div>
+        <div class="seg" style="margin-top:8px"><button data-who="me" class="on">自分の予定</button><button data-who="all">店舗全体</button></div>
+        <div class="stat" id="stat"></div>
+        <div id="bk-list"><div class="sub">読み込み中…</div></div>
+      </div>
+      <p class="sub">閲覧専用です。予約の追加・変更はiPhoneアプリ「予約」から行います。</p>
+    </div>
+
+    <div id="view-cust" class="hide">
       <div class="card">
         <div class="row" style="justify-content:space-between"><h2>顧客</h2><span class="sub" id="cust-count"></span></div>
         <input id="cust-search" placeholder="名前で絞り込み" style="margin-bottom:6px">
@@ -83,7 +102,8 @@
   </div>
 
   <nav id="nav" class="hide">
-    <button data-v="cust" class="on">顧客</button>
+    <button data-v="sched" class="on">予約</button>
+    <button data-v="cust">顧客</button>
     <button data-v="cast" id="nav-cast">配信</button>
     <button data-v="set" id="nav-set">設定</button>
   </nav>
@@ -94,7 +114,8 @@
 const SB_URL="https://rcsaydtknneqyoznanbw.supabase.co", ANON="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJjc2F5ZHRrbm5lcXlvem5hbmJ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc4NzU5MTYsImV4cCI6MjEwMzQ1MTkxNn0.qXMPOlQJVsYBeB0jUfXm-leww-b859Zg9zxBT4XcbQ8", OPS="https://rcsaydtknneqyoznanbw.supabase.co/functions/v1/staff-ops";
 const sb = supabase.createClient(SB_URL, ANON, { auth:{ persistSession:true, storageKey:"yoyaku-staff" } });
 const $ = s => document.querySelector(s);
-let ME=null, CUSTS=[], view="cust";
+let ME=null, CUSTS=[], view="sched";
+let SCH={ base:null, sel:null, who:"me", data:null };
 
 async function ops(action, extra={}) {
   const { data:{ session } } = await sb.auth.getSession();
@@ -135,6 +156,47 @@ function renderCusts(){
 async function loadCusts(){ const j=await ops("customers"); CUSTS=j.customers; renderCusts(); }
 $("#cust-search").oninput = renderCusts;
 
+
+// 予約状況
+const ymd = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+const hm = iso => { const d=new Date(iso); return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`; };
+const addMin = (iso,m) => hm(new Date(new Date(iso).getTime()+m*6e4).toISOString());
+const STATUS = { booked:"", done:"完了", cancelled:"キャンセル", late_cancelled:"直前キャンセル", no_show:"無断キャンセル" };
+function weekStart(d){ const x=new Date(d); x.setHours(0,0,0,0); x.setDate(x.getDate()-((x.getDay()+6)%7)); return x; } // 月曜始まり
+async function loadSched(){
+  const from=ymd(SCH.base), end=new Date(SCH.base); end.setDate(end.getDate()+6);
+  $("#bk-list").innerHTML='<div class="sub">読み込み中…</div>';
+  try{ SCH.data = await ops("schedule",{ from, to:ymd(end) }); renderSched(); }
+  catch(e){ $("#bk-list").innerHTML=`<div class="msg err">${e.message}</div>`; }
+}
+function renderSched(){
+  const D=SCH.data; if(!D) return;
+  const today=ymd(new Date()); const days=[...Array(7)].map((_,i)=>{ const d=new Date(SCH.base); d.setDate(d.getDate()+i); return d; });
+  const live = D.bookings.filter(b=>b.status==="booked"||b.status==="done");
+  const mine = b => b.staff_id===D.me.id || !b.staff_id; // 未割当は自分の予定にも表示
+  const cnt = d => { const k=ymd(d); return live.filter(b=>ymd(new Date(b.start_at))===k && (SCH.who==="me"?mine(b):true)).length; };
+  $("#days").innerHTML = days.map(d=>{ const k=ymd(d), w=d.getDay(); const n=cnt(d);
+    return `<button data-d="${k}" class="${k===SCH.sel?"on":""} ${w===6?"sat":""} ${w===0?"sun":""}"><span class="c">${"日月火水木金土"[w]}${k===today?"・今日":""}</span><span class="n">${d.getDate()}</span><span class="c">${n?n+"件":"—"}</span></button>`; }).join("");
+  document.querySelectorAll("#days button").forEach(b=> b.onclick=()=>{ SCH.sel=b.dataset.d; renderSched(); });
+  $("#sched-title").textContent = `${days[0].getMonth()+1}/${days[0].getDate()}〜${days[6].getMonth()+1}/${days[6].getDate()} の予約状況`;
+  // 週集計
+  const wkMine = live.filter(mine).length, wkAll = live.length;
+  const dayList = D.bookings.filter(b=>ymd(new Date(b.start_at))===SCH.sel && (SCH.who==="me"?mine(b):true));
+  const dayLive = dayList.filter(b=>b.status==="booked"||b.status==="done");
+  const openMin = (t=>{const [h,m]=t.split(":").map(Number);return h*60+m;});
+  const slots = Math.max(0, Math.floor((openMin(D.store.close_time)-openMin(D.store.open_time))/D.store.default_duration));
+  const busyMin = dayLive.reduce((a,b)=>a+b.duration_minutes,0);
+  $("#stat").innerHTML = `<div><b>${dayLive.length}</b><span>${SCH.sel===today?"今日":SCH.sel.slice(5).replace("-","/")} の予約</span></div><div><b>${Math.round(busyMin/60*10)/10}h</b><span>稼働時間</span></div><div><b>${SCH.who==="me"?wkMine:wkAll}</b><span>今週の件数${SCH.who==="all"?"（全員）":""}</span></div>`;
+  const nameOf = id => (D.staffs.find(s=>s.id===id)||{}).name || "未割当";
+  $("#bk-list").innerHTML = dayList.map(b=>{ const st=STATUS[b.status]; const off=b.status!=="booked"&&b.status!=="done";
+    return `<div class="bk ${mine(b)?"mine":""} ${off?"off":""}"><div class="t">${hm(b.start_at)}<br><span class="sub" style="font-weight:400">〜${addMin(b.start_at,b.duration_minutes)}</span></div><div class="m"><div>${b.customer_name||"（顧客名なし）"} ${st?`<span class="tag warn">${st}</span>`:""}${b.status==="done"?`<span class="tag ok">完了</span>`:""}</div><div class="sub">${SCH.who==="all"?`担当 ${nameOf(b.staff_id)}${b.staff_id===D.me.id?"（自分）":""}・`:(b.staff_id?"":"担当未割当・")}${b.menu||D.store.default_duration+"分"}${b.note?`・備考: ${b.note}`:""}</div></div></div>`; }).join("")
+    || `<div class="sub">この日の予約はありません。${SCH.who==="me"?"（店舗全体は上の切替で確認できます）":""}</div>`;
+}
+$("#wk-prev").onclick=()=>{ SCH.base.setDate(SCH.base.getDate()-7); SCH.sel=ymd(SCH.base); loadSched(); };
+$("#wk-next").onclick=()=>{ SCH.base.setDate(SCH.base.getDate()+7); SCH.sel=ymd(SCH.base); loadSched(); };
+$("#wk-today").onclick=()=>{ SCH.base=weekStart(new Date()); SCH.sel=ymd(new Date()); loadSched(); };
+document.querySelectorAll(".seg button").forEach(b=> b.onclick=()=>{ SCH.who=b.dataset.who; document.querySelectorAll(".seg button").forEach(x=>x.classList.toggle("on",x===b)); renderSched(); });
+
 // 配信
 $("#cast-count").onclick = async ()=>{
   $("#cast-msg").textContent=""; $("#cast-msg").className="msg";
@@ -162,7 +224,7 @@ $("#set-save").onclick = async ()=>{
 
 document.querySelectorAll("nav button").forEach(b=> b.onclick=()=>{ view=b.dataset.v; render(); });
 function render(){
-  ["cust","cast","set"].forEach(v=> $("#view-"+v).classList.toggle("hide", v!==view));
+  ["sched","cust","cast","set"].forEach(v=> $("#view-"+v).classList.toggle("hide", v!==view));
   document.querySelectorAll("nav button").forEach(b=> b.classList.toggle("on", b.dataset.v===view));
 }
 
@@ -174,7 +236,8 @@ async function boot(){
     $("#review-tpl").value = j.settings.review_msg_template||"";
     $("#hello").textContent = owner ? "管理（オーナー）" : "顧客対応";
     $("#login").classList.add("hide"); $("#app").classList.remove("hide"); $("#nav").classList.remove("hide");
-    await loadCusts();
+    SCH.base=weekStart(new Date()); SCH.sel=ymd(new Date());
+    await Promise.all([loadSched(), loadCusts()]);
   }catch(e){ $("#lmsg").textContent=e.message; }
 }
 sb.auth.getSession().then(({data:{session}})=>{ if(session) boot(); });
