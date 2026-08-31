@@ -204,7 +204,7 @@
           <div class="row" id="mo-bulk" style="flex-wrap:wrap;gap:6px"></div>
           <div class="row" style="flex-wrap:wrap;gap:6px;margin-top:6px"><button class="ghost sm" id="mo-copy-prev">前の月と同じにする</button><button class="ghost sm" id="mo-clear">この月を全部クリア</button></div>
           <div id="mo-cal" class="cal"></div>
-          <div class="sub" style="margin-top:6px">同じパターンをもう一度タップすると「未設定（曜日の予定に従う）」に戻ります。</div>
+          <div class="sub" style="margin-top:6px">同じパターンをもう一度タップすると未設定に戻ります。その月に出勤日を1日でも登録すると、塗っていない日はその月は休みとして扱います（1日も登録しなければ曜日の予定に従います）。</div>
           <button id="mo-save" style="width:100%;margin-top:8px">この月を保存</button>
           <div id="mo-copy-row" class="row hide" style="margin-top:8px"><select id="mo-to" style="flex:1"></select><button class="ghost sm" id="mo-copy-staff">同じ内容で保存</button></div>
           <div class="msg" id="mo-msg"></div>
@@ -332,9 +332,14 @@ function renderSched(){
 // avail.ts の onDuty をフロントに移植（勤務予定未登録＝所属拠点で常時可。拠点フィルタ all は「いずれかの所属拠点で可」）
 function onDutyJS(D, staffId, locId, dateYmd, startMin, endMin){
   const mine=(D.shifts||[]).filter(x=>x.staff_id===staffId); const locOk=l=>locId==="all"?!!l:l===locId;
-  if(!mine.length) return (D.assigns||[]).some(a=>a.staff_id===staffId && locOk(a.location_id));
   const dated=mine.filter(x=>x.on_date===dateYmd); const wd=new Date(dateYmd+"T00:00:00+09:00").getDay();
-  const rows=dated.length?dated:mine.filter(x=>x.weekday===wd && !x.on_date);
+  const monthPlanned=mine.some(x=>x.on_date && x.location_id && String(x.on_date).slice(0,7)===dateYmd.slice(0,7));
+  const anyWeekly=mine.some(x=>x.weekday!==null && !x.on_date);
+  let rows;
+  if(dated.length) rows=dated;
+  else if(monthPlanned) rows=[];
+  else if(anyWeekly) rows=mine.filter(x=>x.weekday===wd && !x.on_date);
+  else return (D.assigns||[]).some(a=>a.staff_id===staffId && locOk(a.location_id));
   const tm=t=>{const [h,m]=String(t).split(":").map(Number);return h*60+m;};
   return rows.some(x=>x.location_id && locOk(x.location_id) && tm(x.start_time)<=startMin && tm(x.end_time)>=endMin);
 }
