@@ -106,6 +106,20 @@
   .badge{background:var(--bad);color:#fff;border-radius:10px;font-size:10px;padding:1px 6px;margin-left:4px}
   .hide{display:none}.center{text-align:center;padding:30px 0;color:var(--sub)}
   canvas{width:100%;height:160px}
+  /* 空き状況グリッド（ホットペッパー型） */
+  .gridwrap{overflow:auto;max-height:62vh;border:1px solid var(--line);border-radius:10px;-webkit-overflow-scrolling:touch;background:var(--card)}
+  table.grid{border-collapse:separate;border-spacing:0;width:100%;table-layout:fixed;font-size:17px}
+  .grid th,.grid td{text-align:center;border-bottom:1px solid var(--line);border-right:1px solid var(--line);padding:0;height:38px;box-sizing:border-box}
+  .grid thead th{position:sticky;top:0;background:var(--card);z-index:2;font-size:10px;line-height:1.15;padding:5px 0;font-weight:600;color:var(--sub)}
+  .grid thead th .n{display:block;font-size:13px;font-weight:700;color:var(--ink)}.grid thead th.sat .n{color:#2563eb}.grid thead th.sun .n{color:#dc2626}
+  .grid thead th.t{left:0;z-index:3}
+  .grid tbody th.t{position:sticky;left:0;background:var(--card);z-index:1;font-size:11px;color:var(--sub);font-weight:500;vertical-align:top;padding-top:3px;text-align:right;padding-right:4px}
+  .grid tbody th.t.half{border-bottom-color:transparent}.grid tbody tr:has(th.half) td{border-bottom-style:dashed}
+  .grid td.ok{color:var(--acc);font-weight:700;cursor:pointer}.grid td.ok:active{background:var(--accw)}
+  .grid td.x{color:#c4c9d1}.grid td.na{color:#cdd2d9;background:#f3f4f6}
+  .grid td.sel{background:var(--acc);color:#fff}
+  .legend .lg-ok{color:var(--acc)}.legend .lg-ng{color:#9aa0a6}.legend .lg-na{color:#c4c9d1}
+  .pick{margin-top:10px;background:var(--accw);color:var(--acc);border-radius:10px;padding:10px 12px;font-weight:700;font-size:15px}
 </style>
 </head>
 <body>
@@ -234,7 +248,7 @@ function renderHome() {
     const days = r.days.filter(d => d.free > 0).slice(0, 3);
     if (!days.length) { el.textContent = "今週は満枠です。次週以降をご確認ください。"; return; }
     el.innerHTML = "直近の空き： " + days.map(d => `<a href="#" data-soon="${d.date}">${d.date.slice(5).replace("-","/")}（${d.free}枠）</a>`).join("・");
-    el.querySelectorAll("[data-soon]").forEach(x => x.onclick = e => { e.preventDefault(); bookState.date = x.dataset.soon; bookState.from = today(); renderBook(); });
+    el.querySelectorAll("[data-soon]").forEach(x => x.onclick = e => { e.preventDefault(); bookState.from = x.dataset.soon; bookState.slot = null; renderBook(); });
   }).catch(() => {});
   const ext = url => liff.isInClient() ? liff.openWindow({ url, external: true }) : window.open(url, "_blank");
   const openCal = id => {
@@ -280,64 +294,72 @@ async function renderBook(rescheduleId = null) {
   document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b.dataset.v === "book"));
   const reB = rescheduleId ? S.upcoming.find(x => x.id === rescheduleId) : null;
   const dflt = S.defaults || {};
-  bookState = { date: bookState.date || today(), from: bookState.from || today(), duration: reB ? reB.duration_minutes : S.store.default_duration, slot: null, re: rescheduleId,
+  bookState = { from: bookState.from || today(), duration: reB ? reB.duration_minutes : S.store.default_duration, slot: null, re: rescheduleId,
     loc: reB ? (reB.location_id || dflt.location_id) : (bookState.loc || dflt.location_id || (S.locations[0] || {}).id), staff: reB ? (reB.nominated ? reB.staff_id : "") : (bookState.staff !== undefined ? bookState.staff : (dflt.staff_id || "")) };
+  if (bookState.from < today()) bookState.from = today();
   const locs = S.locations || [], staffsAt = id => (S.staffs || []).filter(x => x.locations.includes(id));
   app.innerHTML = `<div class="card"><h2>${reB ? "予約の変更：" + fmtDT(reB.start_at) + " →" : "予約する"}</h2>${reB ? `<div class="sub">日時の<wbr>ほか、<wbr>店舗・<wbr>担当の<wbr>指名も<wbr>変えられます。<wbr>同じ<wbr>日時の<wbr>まま<wbr>担当だけ<wbr>変える<wbr>場合も<wbr>時間を<wbr>選び直して<wbr>ください。</div>` : ""}
     ${reB ? "" : `<label>時間</label><select id="bdur">${[30,45,60,90].map(m => `<option value="${m}" ${m===bookState.duration?"selected":""}>${m}分</option>`).join("")}</select>
     <label>メニュー</label><select id="bmenu"><option>パーソナル</option><option>体験</option><option>カウンセリング</option></select>`}
     ${locs.length > 1 ? `<label>店舗</label><div class="slots" id="locs">${locs.map(l => `<button data-l="${l.id}" class="${l.id===bookState.loc?"sel":""}">${esc(l.name)}</button>`).join("")}</div>` : ""}
     <label>担当の<wbr>指名</label><select id="bstaff"></select>
-    <label>空き状況</label>
-    <div class="legend"><span><i style="background:#dcfce7"></i>余裕あり</span><span><i style="background:#fef9c3"></i>残りわずか</span><span><i style="background:#fee2e2"></i>満枠</span></div>
-    <div class="days" id="days"></div>
-    <div class="pager"><button class="ghost" id="dprev">‹ 前の<wbr>2週間</button><span class="sub" id="dtitle"></span><button class="ghost" id="dnext">次の<wbr>2週間 ›</button></div>
-    <label>時間を<wbr>選ぶ</label><div id="slots"><div class="sub">読み込み中…</div></div>
+    <label>空き状況<wbr>（◎○を<wbr>タップして<wbr>日時を<wbr>選ぶ）</label>
+    <div class="legend"><span><b class="lg-ok">◎</b> 余裕あり</span><span><b class="lg-ok">○</b> 空きあり</span><span><b class="lg-ng">×</b> 満枠</span><span><b class="lg-na">−</b> 受付外</span></div>
+    <div class="pager"><button class="ghost" id="dprev">‹ 前の週</button><span class="sub" id="dtitle"></span><button class="ghost" id="dnext">次の週 ›</button></div>
+    <div class="gridwrap"><table class="grid" id="grid"><tbody><tr><td class="sub" style="padding:14px">読み込み中…</td></tr></tbody></table></div>
+    <div id="pick" class="pick hide"></div>
     ${reB ? "" : `<label>ご要望<wbr>（任意）</label><textarea id="bnote" rows="2"></textarea>`}
     <div style="margin-top:14px"><button id="bgo" disabled>${reB ? "この日時に変更する" : "この日時で予約する"}</button></div></div>`;
   let avail = [];
   const drawStaff = () => { const list = staffsAt(bookState.loc); $("#bstaff").innerHTML = `<option value="">指名な<wbr>し<wbr>（空いている<wbr>担当）</option>` + list.map(x => `<option value="${x.id}" ${x.id===bookState.staff?"selected":""}>${esc(x.name)}</option>`).join(""); if (bookState.staff && !list.some(x => x.id === bookState.staff)) { bookState.staff = ""; $("#bstaff").value = ""; } };
   drawStaff();
-  $("#bstaff").onchange = () => { bookState.staff = $("#bstaff").value; bookState.slot = null; $("#bgo").disabled = true; loadAvail(); };
-  if (locs.length > 1) $("#locs").querySelectorAll("button").forEach(b => b.onclick = () => { bookState.loc = b.dataset.l; $("#locs").querySelectorAll("button").forEach(x => x.classList.toggle("sel", x === b)); drawStaff(); bookState.slot = null; $("#bgo").disabled = true; loadAvail(); });
-  const maxDay = new Date(Date.now() + S.store.booking_open_days * 864e5).toISOString().slice(0, 10);
-  const level = d => !d.open || d.date > maxDay ? "na" : d.free === 0 ? "l1" : d.free / Math.max(d.total, 1) < 0.34 || d.free <= 2 ? "l2" : "l3";
-  const drawDays = () => {
-    $("#days").innerHTML = avail.map(d => {
-      const dt = new Date(d.date + "T00:00:00+09:00"), w = dt.getDay(), lv = level(d);
-      return `<div class="d ${lv} ${w===6?"sat":w===0?"sun":""} ${d.date===bookState.date?"sel":""}" data-d="${d.date}">
-        <div class="w">${"日月火水木金土"[w]}</div><div class="n">${dt.getDate()}</div><div class="m">${lv==="na"?"–":lv==="l1"?"×":d.free}</div></div>`;
-    }).join("");
+  $("#bstaff").onchange = () => { bookState.staff = $("#bstaff").value; bookState.slot = null; loadAvail(); };
+  if (locs.length > 1) $("#locs").querySelectorAll("button").forEach(b => b.onclick = () => { bookState.loc = b.dataset.l; $("#locs").querySelectorAll("button").forEach(x => x.classList.toggle("sel", x === b)); drawStaff(); bookState.slot = null; loadAvail(); });
+  const maxDay = new Date(Date.now() + S.store.booking_open_days * 864e5 + 9 * 3600e3).toISOString().slice(0, 10);
+  const tmin = t => { const [h, m] = String(t).split(":").map(Number); return h * 60 + m; };
+  const m2t = x => `${String(Math.floor(x / 60)).padStart(2, "0")}:${String(x % 60).padStart(2, "0")}`;
+  const addDays = (ymd, n) => { const [y, m, d] = ymd.split("-").map(Number); return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10); };
+  // ホットペッパー型：横に日付・縦に時間。◎=2人以上空き ○=1人空き ×=満枠 −=受付外（過去・期間外）
+  const drawGrid = () => {
+    const st = S.store, slot = st.slot_minutes, rows = [];
+    for (let x = tmin(st.open_time); x + bookState.duration <= tmin(st.close_time); x += slot) rows.push(x);
+    const now = Date.now();
+    const cell = (d, x) => {
+      const iso = new Date(`${d.date}T${m2t(x)}:00+09:00`).toISOString();
+      if (!d.open || d.date > maxDay || Date.parse(iso) < now) return `<td class="na">−</td>`;
+      const i = d.slots.indexOf(iso); if (i < 0) return `<td class="x">×</td>`;
+      const n = (d.counts || [])[i] ?? 1;
+      return `<td class="ok ${bookState.slot === iso ? "sel" : ""}" data-s="${iso}">${n >= 2 ? "◎" : "○"}</td>`;
+    };
+    $("#grid").innerHTML = `<colgroup><col style="width:46px">${avail.map(() => "<col>").join("")}</colgroup>
+      <thead><tr><th class="t"></th>${avail.map(d => { const dt = new Date(d.date + "T00:00:00+09:00"), w = dt.getDay(); return `<th class="${w===6?"sat":w===0?"sun":""}"><span class="n">${dt.getMonth()+1}/${dt.getDate()}</span><span class="w">${"日月火水木金土"[w]}</span></th>`; }).join("")}</tr></thead>
+      <tbody>${rows.map(x => `<tr><th class="t ${x % 60 ? "half" : ""}">${x % 60 ? "" : Math.floor(x / 60) + ":00"}</th>${avail.map(d => cell(d, x)).join("")}</tr>`).join("")}</tbody>`;
     const f = avail[0], l = avail[avail.length - 1];
     $("#dtitle").textContent = f && l ? `${f.date.slice(5).replace("-","/")}〜${l.date.slice(5).replace("-","/")}` : "";
     $("#dprev").disabled = bookState.from <= today();
-    $("#dnext").disabled = l && l.date >= maxDay;
-    $("#days").querySelectorAll(".d").forEach(el => el.onclick = () => { const d = avail.find(x => x.date === el.dataset.d); if (!d || level(d) === "na" || d.free === 0) return; bookState.date = d.date; bookState.slot = null; $("#bgo").disabled = true; drawDays(); drawSlots(); });
+    $("#dnext").disabled = !!(l && l.date >= maxDay);
+    $("#grid").querySelectorAll("td.ok").forEach(td => td.onclick = () => { bookState.slot = td.dataset.s; $("#grid").querySelectorAll("td.sel").forEach(x => x.classList.remove("sel")); td.classList.add("sel"); drawPick(); });
+    drawPick();
   };
-  const drawSlots = () => {
-    const d = avail.find(x => x.date === bookState.date);
-    if (!d) { $("#slots").innerHTML = `<div class="sub">日付を<wbr>選んでください</div>`; return; }
-    if (!d.slots.length) { $("#slots").innerHTML = `<div class="sub">${d.date.slice(5).replace("-","/")} は<wbr>空きが<wbr>ありません。<wbr>他の<wbr>日を<wbr>お選びください</div>`; return; }
-    const grp = { 午前: [], 午後: [], 夜: [] };
-    d.slots.forEach(s => { const h = new Date(s).getHours(); (h < 12 ? grp.午前 : h < 17 ? grp.午後 : grp.夜).push(s); });
-    $("#slots").innerHTML = `<div class="sub" style="margin-bottom:4px">${fmtDT(d.slots[0]).split(" ")[0]}・空き ${d.free} 枠</div>` +
-      Object.entries(grp).filter(([, v]) => v.length).map(([k, v]) => `<div class="grp">${k}</div><div class="slots">${v.map(s => `<button data-s="${s}">${fmtT(s)}</button>`).join("")}</div>`).join("");
-    $("#slots").querySelectorAll("button").forEach(b => b.onclick = () => { $("#slots").querySelectorAll("button").forEach(x => x.classList.remove("sel")); b.classList.add("sel"); bookState.slot = b.dataset.s; $("#bgo").disabled = false; });
+  const drawPick = () => {
+    const el = $("#pick"); if (!bookState.slot) { el.classList.add("hide"); $("#bgo").disabled = true; return; }
+    const end = new Date(Date.parse(bookState.slot) + bookState.duration * 6e4), stf = (S.staffs || []).find(x => x.id === bookState.staff), lc = locs.find(l => l.id === bookState.loc);
+    el.innerHTML = `${fmtDT(bookState.slot)}〜${fmtT(end.toISOString())} <span class="sub" style="font-weight:400">${bookState.duration}分・${stf ? "担当 " + esc(stf.name) : "指名なし"}${locs.length > 1 && lc ? "・" + esc(lc.name) : ""}</span>`;
+    el.classList.remove("hide"); $("#bgo").disabled = false;
+    el.scrollIntoView({ behavior: "smooth", block: "nearest" });
   };
   const loadAvail = async () => {
-    $("#days").innerHTML = `<div class="sub" style="grid-column:1/-1">読み込み中…</div>`;
+    $("#grid").innerHTML = `<tbody><tr><td class="sub" style="padding:14px">読み込み中…</td></tr></tbody>`; $("#bgo").disabled = true;
     try {
-      const r = await api("availability", { from: bookState.from, days: 14, duration: bookState.duration, location_id: bookState.loc, staff_id: bookState.staff || "" });
+      const r = await api("availability", { from: bookState.from, days: 7, duration: bookState.duration, location_id: bookState.loc, staff_id: bookState.staff || "" });
       avail = r.days;
-      // 選択日が範囲外・満枠なら、範囲内で最初の空き日に寄せる
-      const cur = avail.find(x => x.date === bookState.date);
-      if (!cur || cur.free === 0) { const first = avail.find(x => x.free > 0); if (first) bookState.date = first.date; }
-      drawDays(); drawSlots();
-    } catch (e) { $("#days").innerHTML = `<div class="sub" style="grid-column:1/-1">${esc(e.message)}</div>`; }
+      if (bookState.slot && !avail.some(d => d.slots.includes(bookState.slot))) bookState.slot = null;
+      drawGrid();
+    } catch (e) { $("#grid").innerHTML = `<tbody><tr><td class="sub" style="padding:14px">${esc(e.message)}</td></tr></tbody>`; }
   };
-  const shift = n => { const d = new Date(bookState.from + "T00:00:00+09:00"); d.setDate(d.getDate() + n); let f = d.toISOString().slice(0, 10); if (f < today()) f = today(); bookState.from = f; bookState.date = f; bookState.slot = null; $("#bgo").disabled = true; loadAvail(); };
-  $("#dprev").onclick = () => shift(-14); $("#dnext").onclick = () => shift(14);
-  if (!reB) $("#bdur").onchange = () => { bookState.duration = Number($("#bdur").value); bookState.slot = null; $("#bgo").disabled = true; loadAvail(); };
+  const shift = n => { let f = addDays(bookState.from, n); if (f < today()) f = today(); bookState.from = f; bookState.slot = null; loadAvail(); };
+  $("#dprev").onclick = () => shift(-7); $("#dnext").onclick = () => shift(7);
+  if (!reB) $("#bdur").onchange = () => { bookState.duration = Number($("#bdur").value); bookState.slot = null; loadAvail(); };
   loadAvail();
   $("#bgo").onclick = async () => {
     $("#bgo").disabled = true;
