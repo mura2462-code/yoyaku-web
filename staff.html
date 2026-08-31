@@ -49,6 +49,18 @@
   .blk b{font-size:11px;font-variant-numeric:tabular-nums}.blk span{color:var(--sub);font-size:10px}.blk.done{background:#d1fae5;border-left-color:var(--ok)}.blk.off{background:transparent;border:1px dashed var(--danger);opacity:.65;cursor:default}
   .now{position:absolute;left:0;right:0;height:0;border-top:2px solid var(--danger);z-index:2;pointer-events:none}
   @media(prefers-color-scheme:dark){.blk{background:#1e3a5f}.blk.done{background:#064e3b}.tls:active{background:#1e3a5f}}
+  /* 勤務予定の月カレンダー */
+  .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-top:8px}
+  .cal .h{text-align:center;font-size:11px;color:var(--sub);padding:2px 0}
+  .cal .h.sa{color:#2563eb}.cal .h.su{color:#dc2626}
+  .cal .d{border:1px solid var(--line);border-radius:8px;padding:4px 1px;text-align:center;font-size:10px;line-height:1.25;cursor:pointer;background:var(--bg);min-height:46px;overflow:hidden}
+  .cal .d .n{font-size:13px;font-weight:700;display:block;font-variant-numeric:tabular-nums}
+  .cal .d.set{color:#111827;border-color:transparent}
+  .cal .d.past{opacity:.45}
+  .cal .e{border:none;background:none;cursor:default}
+  .chip{border:1px solid var(--line);background:var(--bg);color:var(--txt);border-radius:999px;padding:6px 11px;font-size:12px;font-weight:600}
+  .chip.on{border-color:var(--acc);box-shadow:0 0 0 2px rgba(37,99,235,.35)}
+  .chip .sw{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;border:1px solid rgba(0,0,0,.15);vertical-align:-1px}
   .hide{display:none}.msg{font-size:13px;margin:8px 0;min-height:18px}.msg.err{color:var(--danger)}.msg.ok{color:var(--ok)}
 </style></head><body>
 <div class="wrap">
@@ -173,11 +185,30 @@
       </div>
       <div class="card" id="shift-card">
         <h2>勤務予定</h2>
-        <div class="sub" style="margin-bottom:6px">未登録のスタッフは「所属店舗の営業時間すべてに対応可」として扱います。曜日ごとの週次予定と、特定日の予定（週次より優先・店舗「休み」で休日）を登録できます。</div>
+        <div class="sub" style="margin-bottom:6px">未登録のスタッフは「所属店舗の営業時間すべてに対応可」として扱います。毎週くり返す予定は「曜日ごと」、その月だけの出勤・休みは「ひと月まとめて」で登録します（特定日は曜日より優先）。</div>
         <label>スタッフ</label><select id="sh-staff"></select>
-        <div id="sh-list"></div>
-        <div class="row" style="margin-top:6px;flex-wrap:wrap"><button class="ghost sm" id="sh-add-w">＋ 曜日の予定</button><button class="ghost sm" id="sh-add-d">＋ 特定日の予定</button><button class="sm" id="sh-save">保存</button></div>
-        <div class="msg" id="sh-msg"></div>
+        <div class="seg" id="sh-mode" style="margin-top:8px"><button data-m="week" class="on">曜日ごと（毎週）</button><button data-m="month">ひと月まとめて</button></div>
+
+        <div id="sh-week">
+          <div id="sh-list"></div>
+          <div class="row" style="margin-top:6px;flex-wrap:wrap"><button class="ghost sm" id="sh-add-w">＋ 曜日の予定</button><button class="ghost sm" id="sh-add-d">＋ 特定日の予定</button><button class="sm" id="sh-save">保存</button></div>
+          <div class="msg" id="sh-msg"></div>
+        </div>
+
+        <div id="sh-month" class="hide">
+          <div class="row" style="justify-content:space-between;margin-top:10px"><button class="ghost sm" id="mo-prev">前の月</button><b id="mo-title"></b><button class="ghost sm" id="mo-next">次の月</button></div>
+          <label>塗るパターン（選んでからカレンダーの日をタップ）</label>
+          <div class="row" id="mo-pats" style="flex-wrap:wrap;gap:6px"></div>
+          <div class="row" style="flex-wrap:wrap;margin-top:6px"><select id="mo-ploc" style="flex:1 1 100px"></select><input type="time" id="mo-ps" value="10:00" style="flex:1 1 84px"><span>〜</span><input type="time" id="mo-pe" value="22:00" style="flex:1 1 84px"><button class="ghost sm" id="mo-padd">＋ パターンを追加</button></div>
+          <label>まとめて塗る</label>
+          <div class="row" id="mo-bulk" style="flex-wrap:wrap;gap:6px"></div>
+          <div class="row" style="flex-wrap:wrap;gap:6px;margin-top:6px"><button class="ghost sm" id="mo-copy-prev">前の月と同じにする</button><button class="ghost sm" id="mo-clear">この月を全部クリア</button></div>
+          <div id="mo-cal" class="cal"></div>
+          <div class="sub" style="margin-top:6px">同じパターンをもう一度タップすると「未設定（曜日の予定に従う）」に戻ります。</div>
+          <button id="mo-save" style="width:100%;margin-top:8px">この月を保存</button>
+          <div id="mo-copy-row" class="row hide" style="margin-top:8px"><select id="mo-to" style="flex:1"></select><button class="ghost sm" id="mo-copy-staff">同じ内容で保存</button></div>
+          <div class="msg" id="mo-msg"></div>
+        </div>
       </div>
       <div class="card">
         <button class="ghost" style="width:100%" id="logout">ログアウト</button>
@@ -472,6 +503,7 @@ function renderShifts(){
     <input type="time" class="sh-s" value="${t(r.start_time)||"10:00"}" style="flex:1 1 90px"><span>〜</span><input type="time" class="sh-e" value="${t(r.end_time)||"22:00"}" style="flex:1 1 90px">
     <button class="ghost sm sh-del">削除</button></div>`).join("") || '<div class="sub">登録なし＝所属店舗の営業時間すべてに対応可</div>';
   document.querySelectorAll(".sh-del").forEach(b=>b.onclick=()=>{ collectShifts(); LOC.shifts[LOC.cur].splice(Number(b.closest(".sh-row").dataset.i),1); renderShifts(); });
+  if(!$("#sh-month").classList.contains("hide")) moLoad();
 }
 function collectShifts(){
   const rows=[...document.querySelectorAll(".sh-row")].map(el=>({ on_date:el.querySelector(".sh-date")?.value||null, weekday:el.querySelector(".sh-wd")?Number(el.querySelector(".sh-wd").value):null, location_id:el.querySelector(".sh-loc").value||null, start_time:el.querySelector(".sh-s").value||"00:00", end_time:el.querySelector(".sh-e").value||"23:59" }));
@@ -482,6 +514,138 @@ $("#sh-add-d").onclick=()=>{ collectShifts(); LOC.shifts[LOC.cur].push({ weekday
 $("#sh-save").onclick=async()=>{ const rows=collectShifts(); $("#sh-msg").textContent="保存中…"; $("#sh-msg").className="msg";
   try{ const j=await ops("shifts_set",{ staff_id:LOC.cur, shifts:rows }); $("#sh-msg").textContent=`保存しました（${j.count}件）`; $("#sh-msg").className="msg ok"; await loadLoc(); await loadSched(); }
   catch(e){ $("#sh-msg").textContent=e.message; $("#sh-msg").className="msg err"; } };
+
+
+// 勤務予定：ひと月まとめて（月カレンダーを塗る）
+const PCOL=["#dbeafe","#dcfce7","#fef3c7","#ede9fe","#ffe4e6","#cffafe"];
+let MO={ ym:null, pats:[], sel:"0", days:{}, staff:null };
+const t5=v=>String(v||"").slice(0,5);
+const mkey=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+const dim=d=>new Date(d.getFullYear(),d.getMonth()+1,0).getDate();
+const has=(o,k)=>Object.prototype.hasOwnProperty.call(o,k);
+function patEq(a,b){ if(a===null||b===null) return a===b; return !!a&&!!b&&a.location_id===b.location_id&&a.start_time===b.start_time&&a.end_time===b.end_time; }
+function locName(id){ const l=(LOC.data?.locations||[]).find(x=>x.id===id); return l?l.name:"店舗"; }
+function patLabel(p){ const multi=(LOC.data?.locations||[]).filter(l=>l.active).length>1; return `${multi?locName(p.location_id)+" ":""}${p.start_time}〜${p.end_time}`; }
+function moMsg(t,kind){ $("#mo-msg").textContent=t||""; $("#mo-msg").className="msg"+(kind==="err"?" err":kind==="ok"?" ok":""); }
+
+function moLoad(){
+  if(!LOC.data) return;
+  if(!MO.ym) MO.ym=new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  MO.staff=LOC.cur;
+  const km=mkey(MO.ym);
+  MO.days={};
+  for(const r of (LOC.shifts[LOC.cur]||[])){
+    if(!r.on_date||!String(r.on_date).startsWith(km)) continue;
+    MO.days[r.on_date]= r.location_id ? { location_id:r.location_id, start_time:t5(r.start_time), end_time:t5(r.end_time) } : null;
+  }
+  moPats(); moRender();
+}
+function moPats(){
+  const locs=(LOC.data?.locations||[]).filter(l=>l.active);
+  const st=SCH.data?.store||{}; const o=t5(st.open_time)||"10:00", c=t5(st.close_time)||"22:00";
+  const cand=[];
+  for(const k in MO.days){ const v=MO.days[k]; if(v) cand.push(v); }              // その月ですでに使っている時間帯
+  for(const p of MO.pats) cand.push(p);                                            // 手で足したもの
+  for(const l of locs) cand.push({ location_id:l.id, start_time:o, end_time:c });  // 店舗の営業時間
+  const all=[]; for(const p of cand) if(!all.some(x=>patEq(x,p))) all.push(p);
+  MO.pats=all.slice(0,8);
+  if(MO.sel!=="off"&&MO.sel!=="clear"&&!MO.pats[Number(MO.sel)]) MO.sel="0";
+}
+function moRender(){
+  if(!LOC.data) return;
+  const D=LOC.data, owner=D.role==="owner";
+  $("#mo-title").textContent=`${MO.ym.getFullYear()}年${MO.ym.getMonth()+1}月`;
+  $("#mo-ploc").innerHTML=D.locations.filter(l=>l.active).map(l=>`<option value="${l.id}">${l.name}</option>`).join("");
+  const chips=MO.pats.map((p,i)=>`<button class="chip ${MO.sel===String(i)?"on":""}" data-k="${i}"><span class="sw" style="background:${PCOL[i%PCOL.length]}"></span>${patLabel(p)}</button>`);
+  chips.push(`<button class="chip ${MO.sel==="off"?"on":""}" data-k="off"><span class="sw" style="background:#fecaca"></span>休み</button>`);
+  chips.push(`<button class="chip ${MO.sel==="clear"?"on":""}" data-k="clear">未設定に戻す</button>`);
+  $("#mo-pats").innerHTML=chips.join("");
+  document.querySelectorAll("#mo-pats .chip").forEach(b=>b.onclick=()=>{ MO.sel=b.dataset.k; moRender(); });
+  $("#mo-bulk").innerHTML=[`<button class="chip" data-b="all">全日</button>`,`<button class="chip" data-b="wd">平日</button>`,`<button class="chip" data-b="we">土日</button>`]
+    .concat([1,2,3,4,5,6,0].map(w=>`<button class="chip" data-b="w${w}">${WD[w]}</button>`)).join("");
+  document.querySelectorAll("#mo-bulk .chip").forEach(b=>b.onclick=()=>moBulk(b.dataset.b));
+  const y=MO.ym.getFullYear(), m=MO.ym.getMonth(), n=dim(MO.ym), lead=(new Date(y,m,1).getDay()+6)%7, today=ymd(new Date());
+  let h=["月","火","水","木","金","土","日"].map((x,i)=>`<div class="h ${i===5?"sa":i===6?"su":""}">${x}</div>`).join("");
+  for(let i=0;i<lead;i++) h+=`<div class="d e"></div>`;
+  for(let d=1;d<=n;d++){
+    const k=`${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`, set=has(MO.days,k), v=MO.days[k];
+    let bg="", label="";
+    if(set&&v===null){ bg="#fecaca"; label="休み"; }
+    else if(set&&v){ const i=MO.pats.findIndex(p=>patEq(p,v)); bg=PCOL[(i<0?0:i)%PCOL.length]; label=`${v.start_time.replace(":00","")}〜<br>${v.end_time.replace(":00","")}`; }
+    h+=`<div class="d ${set?"set":""} ${k<today?"past":""}" data-k="${k}" style="${bg?`background:${bg}`:""}"><span class="n">${d}</span>${label}</div>`;
+  }
+  $("#mo-cal").innerHTML=h;
+  document.querySelectorAll("#mo-cal .d[data-k]").forEach(el=>el.onclick=()=>{ moApply(el.dataset.k); moRender(); });
+  const others=D.staffs.filter(s=>s.active&&s.id!==MO.staff);
+  $("#mo-copy-row").classList.toggle("hide", !(owner&&others.length));
+  $("#mo-to").innerHTML=others.map(s=>`<option value="${s.id}">${s.name}</option>`).join("");
+}
+function moApply(k){
+  if(MO.sel==="clear"){ delete MO.days[k]; return; }
+  if(MO.sel==="off"){ if(has(MO.days,k)&&MO.days[k]===null) delete MO.days[k]; else MO.days[k]=null; return; }
+  const p=MO.pats[Number(MO.sel)]; if(!p) return;
+  if(has(MO.days,k)&&patEq(MO.days[k],p)) delete MO.days[k]; else MO.days[k]={...p};
+}
+function moBulk(b){
+  const y=MO.ym.getFullYear(), m=MO.ym.getMonth(), n=dim(MO.ym);
+  for(let d=1;d<=n;d++){
+    const dt=new Date(y,m,d), w=dt.getDay(), k=ymd(dt);
+    const hit = b==="all" || (b==="wd"&&w>=1&&w<=5) || (b==="we"&&(w===0||w===6)) || b===("w"+w);
+    if(!hit) continue;
+    if(MO.sel==="clear") delete MO.days[k];
+    else if(MO.sel==="off") MO.days[k]=null;
+    else { const p=MO.pats[Number(MO.sel)]; if(p) MO.days[k]={...p}; }
+  }
+  moRender();
+}
+$("#mo-prev").onclick=()=>{ MO.ym=new Date(MO.ym.getFullYear(),MO.ym.getMonth()-1,1); moMsg(""); moLoad(); };
+$("#mo-next").onclick=()=>{ MO.ym=new Date(MO.ym.getFullYear(),MO.ym.getMonth()+1,1); moMsg(""); moLoad(); };
+$("#mo-padd").onclick=()=>{
+  const p={ location_id:$("#mo-ploc").value, start_time:$("#mo-ps").value, end_time:$("#mo-pe").value };
+  if(!p.location_id) return moMsg("店舗を選んでください","err");
+  if(!(p.start_time&&p.end_time&&p.start_time<p.end_time)) return moMsg("開始と終了の時間を確認してください","err");
+  if(!MO.pats.some(x=>patEq(x,p))) MO.pats.push(p);
+  MO.sel=String(MO.pats.findIndex(x=>patEq(x,p))); moMsg(""); moRender();
+};
+$("#mo-clear").onclick=()=>{ if(!confirm(`${MO.ym.getMonth()+1}月の特定日の予定を、画面上ですべて未設定に戻します。（保存するまで反映されません）`)) return; MO.days={}; moRender(); };
+$("#mo-copy-prev").onclick=()=>{
+  const prev=new Date(MO.ym.getFullYear(),MO.ym.getMonth()-1,1), km=mkey(prev);
+  const rows=(LOC.shifts[MO.staff]||[]).filter(r=>r.on_date&&String(r.on_date).startsWith(km));
+  if(!rows.length) return moMsg("前の月には特定日の予定が登録されていません","err");
+  const byW={};
+  for(const r of rows){
+    const w=new Date(r.on_date+"T00:00:00+09:00").getDay();
+    const v=r.location_id?{ location_id:r.location_id, start_time:t5(r.start_time), end_time:t5(r.end_time) }:null;
+    (byW[w]=byW[w]||[]).push(v);
+  }
+  const pick=arr=>{ const c=[]; for(const v of arr){ const f=c.find(x=>patEq(x.v,v)); if(f) f.n++; else c.push({v,n:1}); } c.sort((a,b)=>b.n-a.n); return c[0].v; };
+  const y=MO.ym.getFullYear(), m=MO.ym.getMonth(), n=dim(MO.ym);
+  MO.days={};
+  for(let d=1;d<=n;d++){ const dt=new Date(y,m,d), w=dt.getDay(); if(!byW[w]) continue; MO.days[ymd(dt)]=pick(byW[w]); }
+  moPats(); moRender(); moMsg("前の月の曜日ごとの予定を写しました。内容を確かめて保存してください。","ok");
+};
+async function moSave(sid,label){
+  const days=Object.keys(MO.days).sort().map(k=>{ const v=MO.days[k];
+    return v ? { date:k, location_id:v.location_id, start_time:v.start_time, end_time:v.end_time } : { date:k, location_id:null, start_time:"00:00", end_time:"23:59" }; });
+  moMsg("保存中…");
+  try{ const j=await ops("shifts_month_set",{ staff_id:sid, month:mkey(MO.ym), days });
+    await loadLoc(); await loadSched();
+    moMsg(`${label} の ${MO.ym.getMonth()+1}月を保存しました（${j.count}日分）`,"ok");
+  }catch(e){ moMsg(e.message,"err"); }
+}
+$("#mo-save").onclick=()=>{ const name=$("#sh-staff").selectedOptions[0]?.textContent||"このスタッフ"; moSave(MO.staff,name); };
+$("#mo-copy-staff").onclick=()=>{
+  const sid=$("#mo-to").value; if(!sid) return;
+  const name=$("#mo-to").selectedOptions[0].textContent;
+  if(!confirm(`${name} の ${MO.ym.getMonth()+1}月の勤務予定を、いま表示している内容で置き換えます。よろしいですか？`)) return;
+  moSave(sid,name);
+};
+document.querySelectorAll("#sh-mode button").forEach(b=> b.onclick=()=>{
+  const m=b.dataset.m;
+  document.querySelectorAll("#sh-mode button").forEach(x=>x.classList.toggle("on",x===b));
+  $("#sh-week").classList.toggle("hide",m!=="week"); $("#sh-month").classList.toggle("hide",m!=="month");
+  if(m==="month") moLoad();
+});
 
 // 配信
 $("#cast-count").onclick = async ()=>{
