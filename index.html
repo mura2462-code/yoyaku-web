@@ -119,6 +119,12 @@
   .grid td.x{color:#c4c9d1}.grid td.na{color:#cdd2d9;background:#f3f4f6}
   .grid td.sel{background:var(--acc);color:#fff}
   .legend .lg-ok{color:var(--acc)}.legend .lg-ng{color:#9aa0a6}.legend .lg-na{color:#c4c9d1}
+  /* 空き記号は文字（◎○）だとフォントで径が揃わないので CSS で描く */
+  .mk{display:inline-block;width:18px;height:18px;vertical-align:middle;position:relative;box-sizing:border-box;color:inherit}
+  .mk1,.mk2{border:2.5px solid currentColor;border-radius:50%}.mk2::after{content:"";position:absolute;inset:2.5px;border:2px solid currentColor;border-radius:50%}
+  .mkx::before,.mkx::after{content:"";position:absolute;left:2px;right:2px;top:50%;height:2px;margin-top:-1px;background:currentColor;transform:rotate(45deg)}.mkx::after{transform:rotate(-45deg)}
+  .mkn::before{content:"";position:absolute;left:4px;right:4px;top:50%;height:2px;margin-top:-1px;background:currentColor}
+  .legend .mk{width:14px;height:14px;margin-right:3px}.legend .mk1,.legend .mk2{border-width:2px}.legend .mk2::after{inset:2px;border-width:1.5px}
   .pick{margin-top:10px;background:var(--accw);color:var(--acc);border-radius:10px;padding:10px 12px;font-weight:700;font-size:15px}
 </style>
 </head>
@@ -304,7 +310,7 @@ async function renderBook(rescheduleId = null) {
     ${locs.length > 1 ? `<label>店舗</label><div class="slots" id="locs">${locs.map(l => `<button data-l="${l.id}" class="${l.id===bookState.loc?"sel":""}">${esc(l.name)}</button>`).join("")}</div>` : ""}
     <label>担当の<wbr>指名</label><select id="bstaff"></select>
     <label>空き状況<wbr>（◎○を<wbr>タップして<wbr>日時を<wbr>選ぶ）</label>
-    <div class="legend"><span><b class="lg-ok">◎</b> 余裕あり</span><span><b class="lg-ok">○</b> 空きあり</span><span><b class="lg-ng">×</b> 満枠</span><span><b class="lg-na">−</b> 受付外</span></div>
+    <div class="legend"><span class="lg-ok"><i class="mk mk2"></i>余裕あり</span><span class="lg-ok"><i class="mk mk1"></i>空きあり</span><span class="lg-ng"><i class="mk mkx"></i>満枠</span><span class="lg-na"><i class="mk mkn"></i>受付外</span></div>
     <div class="pager"><button class="ghost" id="dprev">‹ 前の週</button><span class="sub" id="dtitle"></span><button class="ghost" id="dnext">次の週 ›</button></div>
     <div class="gridwrap"><table class="grid" id="grid"><tbody><tr><td class="sub" style="padding:14px">読み込み中…</td></tr></tbody></table></div>
     <div id="pick" class="pick hide"></div>
@@ -326,10 +332,10 @@ async function renderBook(rescheduleId = null) {
     const now = Date.now();
     const cell = (d, x) => {
       const iso = new Date(`${d.date}T${m2t(x)}:00+09:00`).toISOString();
-      if (!d.open || d.date > maxDay || Date.parse(iso) < now) return `<td class="na">−</td>`;
-      const i = d.slots.indexOf(iso); if (i < 0) return `<td class="x">×</td>`;
+      if (!d.open || d.date > maxDay || Date.parse(iso) < now) return `<td class="na"><i class="mk mkn"></i></td>`;
+      const i = d.slots.indexOf(iso); if (i < 0) return `<td class="x"><i class="mk mkx"></i></td>`;
       const n = (d.counts || [])[i] ?? 1;
-      return `<td class="ok ${bookState.slot === iso ? "sel" : ""}" data-s="${iso}">${n >= 2 ? "◎" : "○"}</td>`;
+      return `<td class="ok ${bookState.slot === iso ? "sel" : ""}" data-s="${iso}"><i class="mk ${n >= 2 ? "mk2" : "mk1"}"></i></td>`;
     };
     $("#grid").innerHTML = `<colgroup><col style="width:46px">${avail.map(() => "<col>").join("")}</colgroup>
       <thead><tr><th class="t"></th>${avail.map(d => { const dt = new Date(d.date + "T00:00:00+09:00"), w = dt.getDay(); return `<th class="${w===6?"sat":w===0?"sun":""}"><span class="n">${dt.getMonth()+1}/${dt.getDate()}</span><span class="w">${"日月火水木金土"[w]}</span></th>`; }).join("")}</tr></thead>
