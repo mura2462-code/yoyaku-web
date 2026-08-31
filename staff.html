@@ -311,7 +311,11 @@ function renderSched(){
   $("#stat").innerHTML = `<div><b>${dayLive.length}</b><span>${SCH.sel===today?"今日":SCH.sel.slice(5).replace("-","/")}の予約</span></div><div><b>${Math.round(busyMin/60*10)/10}h</b><span>稼働時間</span></div><div><b>${SCH.who==="me"?wkMine:wkAll}</b><span>今週${SCH.who==="all"?"（全員）":"（自分）"}</span></div>`;
   // タイムライン（サロンボード型）: 横=スタッフ・縦=時間。ブロック=予約（タップで変更）、空き枠タップで追加、勤務予定外は斜線
   let cols = SCH.who==="me" ? D.staffs.filter(s=>s.id===D.me.id) : D.staffs.filter(s=>s.active);
-  if(SCH.who==="all" && SCH.loc!=="all"){ const inL=new Set((D.assigns||[]).filter(a=>a.location_id===SCH.loc).map(a=>a.staff_id)); const c2=cols.filter(s=>inL.has(s.id)); if(c2.length) cols=c2; }
+  if(SCH.who==="all"){ // 所属していない人は予約を受けられないので列に出さない（その日に予約が入っている人は残す）
+    const inL=new Set((D.assigns||[]).filter(a=>SCH.loc==="all"||a.location_id===SCH.loc).map(a=>a.staff_id));
+    const hasBk=new Set(dayList.map(b=>b.staff_id).filter(Boolean));
+    const c2=cols.filter(s=>inL.has(s.id)||hasBk.has(s.id)); if(c2.length) cols=c2;
+  }
   const colsAll=cols.map(s=>({id:s.id,name:s.name})); if(dayList.some(b=>!b.staff_id)) colsAll.push({id:"",name:"未割当"});
   const RH=26; const rows=[]; for(let x=oMin;x<cMin;x+=slot) rows.push(x); const H=rows.length*RH;
   const m2t=x=>`${String(Math.floor(x/60)).padStart(2,"0")}:${String(x%60).padStart(2,"0")}`;
@@ -348,6 +352,13 @@ $("#wk-next").onclick=()=>{ SCH.base.setDate(SCH.base.getDate()+7); SCH.sel=ymd(
 $("#wk-today").onclick=()=>{ SCH.base=weekStart(new Date()); SCH.sel=ymd(new Date()); SCH.scrolled=false; loadSched(); };
 document.querySelectorAll(".seg button").forEach(b=> b.onclick=()=>{ SCH.who=b.dataset.who; document.querySelectorAll(".seg button").forEach(x=>x.classList.toggle("on",x===b)); renderSched(); });
 
+// 担当セレクト: その店舗に所属している人だけ（いま担当になっている人は所属外でも残す）
+function staffOptions(D, locId, selected, autoLabel){
+  const inL=new Set((D.assigns||[]).filter(a=>!locId||a.location_id===locId).map(a=>a.staff_id));
+  const list=(D.staffs||[]).filter(s=>s.active&&(inL.has(s.id)||s.id===selected));
+  return `<option value="">${autoLabel}</option>`+list.map(s=>`<option value="${s.id}" ${s.id===selected?"selected":""}>${esc(s.name)}</option>`).join("");
+}
+
 // 予約変更（担当・店舗・日時）
 let BE={ id:null };
 function openEdit(id){
@@ -355,7 +366,8 @@ function openEdit(id){
   const d=new Date(b.start_at); $("#be-title").textContent=`${b.customer_name}・現在 ${hm(b.start_at)}〜${addMin(b.start_at,b.duration_minutes)}`;
   $("#be-date").value=ymd(d); $("#be-time").innerHTML=timeOptions(); $("#be-time").value=hm(b.start_at);
   $("#be-loc").innerHTML=(D.locations||[]).filter(l=>l.active).map(l=>`<option value="${l.id}" ${l.id===b.location_id?"selected":""}>${l.name}</option>`).join("");
-  $("#be-staff").innerHTML=`<option value="">自動（優先順位で割当）</option>`+D.staffs.filter(s=>s.active).map(s=>`<option value="${s.id}" ${s.id===b.staff_id?"selected":""}>${s.name}</option>`).join("");
+  $("#be-staff").innerHTML=staffOptions(D, $("#be-loc").value, b.staff_id||"", "自動（優先順位で割当）");
+  $("#be-loc").onchange=()=>{ $("#be-staff").innerHTML=staffOptions(D, $("#be-loc").value, $("#be-staff").value, "自動（優先順位で割当）"); };
   $("#be-nom").checked=!!b.nominated; $("#be-msg").textContent=""; $("#be-msg").className="msg";
   $("#bk-editcard").classList.remove("hide"); $("#bk-editcard").scrollIntoView({behavior:"smooth",block:"nearest"});
 }
@@ -379,9 +391,12 @@ function openForm(preset){
   BF={cid:null,cust:null}; $("#bf-q").value=""; $("#bf-cands").innerHTML=""; $("#bf-cid").value=""; $("#bf-email").value=""; $("#bf-line").textContent=""; $("#bf-newc").classList.add("hide"); $("#bf-nname").value=""; $("#bf-nphone").value="";
   $("#bf-date").value=(preset&&preset.date)||SCH.sel||ymd(new Date()); $("#bf-time").innerHTML=timeOptions(); if(preset&&preset.time) $("#bf-time").value=preset.time; $("#bf-dur").value=String(SCH.data?.store?.default_duration||60);
   $("#bf-menu").value=""; $("#bf-note").value=""; $("#bf-msg").textContent=""; $("#bf-msg").className="msg";
-  const st=SCH.data?.staffs||[]; $("#bf-staff").innerHTML = `<option value="">自動（店舗の優先順位で割当）</option>`+st.filter(s=>s.active).map(s=>`<option value="${s.id}" ${s.id===(preset?preset.staff:SCH.data.me.id)?"selected":""}>${s.name}</option>`).join("");
   const locs=(SCH.data?.locations||[]).filter(l=>l.active); $("#bf-locwrap").classList.toggle("hide", locs.length<=1);
   $("#bf-loc").innerHTML = locs.map(l=>`<option value="${l.id}" ${(SCH.loc!=="all"?SCH.loc:(SCH.data.me.locations||[])[0])===l.id?"selected":""}>${l.name}</option>`).join(""); $("#bf-nom").checked=false;
+  const myLocs=SCH.data.me.locations||[];   // 自分が所属していない拠点では自分を既定にしない（選んでも受けられない）
+  const defStaff=(preset&&preset.staff)||(myLocs.includes($("#bf-loc").value)?SCH.data.me.id:"");
+  $("#bf-staff").innerHTML=staffOptions(SCH.data, $("#bf-loc").value, defStaff, "自動（店舗の優先順位で割当）");
+  $("#bf-loc").onchange=()=>{ $("#bf-staff").innerHTML=staffOptions(SCH.data, $("#bf-loc").value, $("#bf-staff").value, "自動（店舗の優先順位で割当）"); };
   setVia("both", true); $("#bf-form").classList.remove("hide"); $("#bf-form").scrollIntoView({behavior:"smooth",block:"start"}); $("#bf-q").focus();
 }
 // 控えの送り方（LINE未連携の顧客はLINEを選べない）
