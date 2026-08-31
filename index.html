@@ -112,9 +112,9 @@
   .grid th,.grid td{text-align:center;border-bottom:1px solid var(--line);border-right:1px solid var(--line);padding:0;height:38px;box-sizing:border-box}
   .grid thead th{position:sticky;top:0;background:var(--card);z-index:2;font-size:10px;line-height:1.15;padding:5px 0;font-weight:600;color:var(--sub)}
   .grid thead th .n{display:block;font-size:13px;font-weight:700;color:var(--ink)}.grid thead th.sat .n{color:#2563eb}.grid thead th.sun .n{color:#dc2626}
-  .grid thead th.t{left:0;z-index:3}
+  .grid thead th.t{left:0;z-index:3;width:46px}
   .grid tbody th.t{position:sticky;left:0;background:var(--card);z-index:1;font-size:11px;color:var(--sub);font-weight:500;vertical-align:top;padding-top:3px;text-align:right;padding-right:4px}
-  .grid tbody th.t.half{border-bottom-color:transparent}.grid tbody tr:has(th.half) td{border-bottom-style:dashed}
+  .grid tbody tr.sub th.t{border-bottom-color:transparent}.grid tbody tr.sub td{border-bottom-style:dashed}
   .grid td.ok{color:var(--acc);font-weight:700;cursor:pointer}.grid td.ok:active{background:var(--accw)}
   .grid td.x{color:#c4c9d1}.grid td.na{color:#cdd2d9;background:#f3f4f6}
   .grid td.sel{background:var(--acc);color:#fff}
@@ -333,7 +333,7 @@ async function renderBook(rescheduleId = null) {
     };
     $("#grid").innerHTML = `<colgroup><col style="width:46px">${avail.map(() => "<col>").join("")}</colgroup>
       <thead><tr><th class="t"></th>${avail.map(d => { const dt = new Date(d.date + "T00:00:00+09:00"), w = dt.getDay(); return `<th class="${w===6?"sat":w===0?"sun":""}"><span class="n">${dt.getMonth()+1}/${dt.getDate()}</span><span class="w">${"日月火水木金土"[w]}</span></th>`; }).join("")}</tr></thead>
-      <tbody>${rows.map(x => `<tr><th class="t ${x % 60 ? "half" : ""}">${x % 60 ? "" : Math.floor(x / 60) + ":00"}</th>${avail.map(d => cell(d, x)).join("")}</tr>`).join("")}</tbody>`;
+      <tbody>${rows.map(x => `<tr class="${(x + slot) % 60 ? "sub" : ""}"><th class="t">${x % 60 ? "" : Math.floor(x / 60) + ":00"}</th>${avail.map(d => cell(d, x)).join("")}</tr>`).join("")}</tbody>`;
     const f = avail[0], l = avail[avail.length - 1];
     $("#dtitle").textContent = f && l ? `${f.date.slice(5).replace("-","/")}〜${l.date.slice(5).replace("-","/")}` : "";
     $("#dprev").disabled = bookState.from <= today();

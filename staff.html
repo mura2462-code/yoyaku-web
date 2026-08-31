@@ -6,10 +6,11 @@
   @media(prefers-color-scheme:dark){:root{--bg:#0b0f14;--card:#151b23;--line:#263140;--sub:#9aa4b2;--txt:#e8edf2}}
   *{box-sizing:border-box}body{margin:0;font-family:-apple-system,"Hiragino Kaku Gothic ProN",sans-serif;background:var(--bg);color:var(--txt);font-size:15px;line-height:1.7}
   .wrap{max-width:640px;margin:0 auto;padding:16px 14px 90px}
+  @media(min-width:1024px){.wrap{max-width:960px}.tlwrap{max-height:74vh}}
   h1{font-size:18px;margin:4px 0 14px}h2{font-size:15px;margin:0 0 10px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
   label{display:block;font-size:12px;color:var(--sub);margin:8px 0 3px}
-  input,textarea,select{width:100%;padding:11px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--txt);font-size:15px}
+  input,textarea,select{width:100%;padding:11px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--txt);font-size:16px}
   textarea{min-height:96px;resize:vertical}
   button{border:none;border-radius:10px;padding:11px 14px;font-size:14px;font-weight:600;background:var(--acc);color:#fff;cursor:pointer}
   button.ghost{background:transparent;color:var(--acc);border:1px solid var(--acc)}
@@ -21,13 +22,13 @@
   nav{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--line);display:flex;padding-bottom:env(safe-area-inset-bottom)}
   nav button{flex:1;background:none;color:var(--sub);border-radius:0;padding:11px 0}nav button.on{color:var(--acc)}
   .days{display:flex;gap:4px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
-  .days button{flex:0 0 46px;background:var(--bg);color:var(--txt);border:1px solid var(--line);padding:6px 0;font-size:12px;line-height:1.3;font-weight:500}
+  .days button{flex:1 1 0;min-width:42px;padding-left:0;padding-right:0;background:var(--bg);color:var(--txt);border:1px solid var(--line);padding:6px 0;font-size:12px;line-height:1.3;font-weight:500}
   .days button.on{background:var(--acc);color:#fff;border-color:var(--acc)}.days button .n{font-size:15px;font-weight:700;display:block}
   .days button .c{font-size:10px;color:var(--sub);display:block}.days button.on .c{color:#e0e7ff}.days button.sat .n{color:#2563eb}.days button.sun .n{color:#dc2626}.days button.on .n{color:#fff}
   .bk{border-top:1px solid var(--line);padding:9px 0;display:flex;gap:10px;align-items:flex-start}.bk:first-child{border-top:none}
   .bk .t{flex:0 0 78px;font-weight:700;font-variant-numeric:tabular-nums}.bk.mine .t{color:var(--acc)}.bk.off{opacity:.5}.bk .m{flex:1}
   .seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}.seg button{flex:1;background:var(--bg);color:var(--sub);border-radius:0;padding:8px 0;font-size:13px}.seg button.on{background:var(--acc);color:#fff}
-  .stat{display:flex;gap:8px;margin:8px 0}.stat div{flex:1;background:var(--bg);border-radius:10px;padding:8px;text-align:center}.stat b{display:block;font-size:18px}.stat span{font-size:11px;color:var(--sub)}
+  .stat{display:flex;gap:8px;margin:8px 0}.stat div{flex:1;min-width:0;background:var(--bg);border-radius:10px;padding:8px 4px;text-align:center}.stat b{display:block;font-size:18px}.stat span{font-size:11px;color:var(--sub);white-space:nowrap}
   .th{border-top:1px solid var(--line);padding:10px 0;display:flex;justify-content:space-between;align-items:center;gap:10px;cursor:pointer}.th:first-child{border-top:none}
   .badge{background:var(--danger);color:#fff;border-radius:999px;font-size:11px;padding:1px 7px;font-weight:700}
   .chat{display:flex;flex-direction:column;gap:6px;max-height:55vh;overflow-y:auto;padding:4px 0}
@@ -40,9 +41,9 @@
   .tlh{position:sticky;top:0;z-index:3;background:var(--card);border-bottom:1px solid var(--line);border-right:1px solid var(--line);font-size:12px;font-weight:700;text-align:center;padding:7px 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .tlh.t{left:0;z-index:4}.tlh.me{color:var(--acc)}
   .tlt{position:sticky;left:0;z-index:2;background:var(--card);border-right:1px solid var(--line)}
-  .tlr{font-size:10px;color:var(--sub);text-align:right;padding:2px 4px 0 0;border-bottom:1px solid var(--line);box-sizing:border-box;line-height:1.1}.tlr.half{border-bottom-color:transparent}
+  .tlr{font-size:10px;color:var(--sub);text-align:right;padding:2px 4px 0 0;border-bottom:1px solid var(--line);box-sizing:border-box;line-height:1.1}.tlr.sub{border-bottom-color:transparent}
   .tlc{position:relative;border-right:1px solid var(--line)}
-  .tls{border-bottom:1px solid var(--line);box-sizing:border-box;cursor:pointer}.tls.half{border-bottom-style:dashed}
+  .tls{border-bottom:1px solid var(--line);box-sizing:border-box;cursor:pointer}.tls.sub{border-bottom-style:dashed}
   .tls.off{background:repeating-linear-gradient(135deg,transparent 0 6px,rgba(107,114,128,.14) 6px 8px)}.tls:active{background:#dbeafe}
   .blk{position:absolute;left:3px;right:3px;background:#dbeafe;border-left:3px solid var(--acc);border-radius:6px;padding:2px 5px;font-size:11px;line-height:1.3;overflow:hidden;cursor:pointer;z-index:1;color:var(--txt);box-sizing:border-box}
   .blk b{font-size:11px;font-variant-numeric:tabular-nums}.blk span{color:var(--sub);font-size:10px}.blk.done{background:#d1fae5;border-left-color:var(--ok)}.blk.off{background:transparent;border:1px dashed var(--danger);opacity:.65;cursor:default}
@@ -276,7 +277,7 @@ function renderSched(){
   const openMin = (t=>{const [h,m]=String(t).split(":").map(Number);return h*60+m;});
   const oMin=openMin(D.store.open_time), cMin=openMin(D.store.close_time), slot=D.store.slot_minutes||30;
   const busyMin = dayLive.reduce((a,b)=>a+b.duration_minutes,0);
-  $("#stat").innerHTML = `<div><b>${dayLive.length}</b><span>${SCH.sel===today?"今日":SCH.sel.slice(5).replace("-","/")} の予約</span></div><div><b>${Math.round(busyMin/60*10)/10}h</b><span>稼働時間</span></div><div><b>${SCH.who==="me"?wkMine:wkAll}</b><span>今週の件数${SCH.who==="all"?"（全員）":""}</span></div>`;
+  $("#stat").innerHTML = `<div><b>${dayLive.length}</b><span>${SCH.sel===today?"今日":SCH.sel.slice(5).replace("-","/")}の予約</span></div><div><b>${Math.round(busyMin/60*10)/10}h</b><span>稼働時間</span></div><div><b>${SCH.who==="me"?wkMine:wkAll}</b><span>今週${SCH.who==="all"?"（全員）":"（自分）"}</span></div>`;
   // タイムライン（サロンボード型）: 横=スタッフ・縦=時間。ブロック=予約（タップで変更）、空き枠タップで追加、勤務予定外は斜線
   let cols = SCH.who==="me" ? D.staffs.filter(s=>s.id===D.me.id) : D.staffs.filter(s=>s.active);
   if(SCH.who==="all" && SCH.loc!=="all"){ const inL=new Set((D.assigns||[]).filter(a=>a.location_id===SCH.loc).map(a=>a.staff_id)); const c2=cols.filter(s=>inL.has(s.id)); if(c2.length) cols=c2; }
@@ -290,8 +291,8 @@ function renderSched(){
   const nowLine=(()=>{ if(SCH.sel!==today) return ""; const n=new Date(); const m=n.getHours()*60+n.getMinutes(); return m>=oMin&&m<=cMin?`<div class="now" style="top:${(m-oMin)/slot*RH}px"></div>`:""; })();
   $("#bk-list").innerHTML = `<div class="tlwrap" id="tlwrap"><div class="tl" style="--cols:${colsAll.length}">
     <div class="tlh t"></div>${colsAll.map(c=>`<div class="tlh ${c.id===D.me.id?"me":""}">${esc(c.name)}${c.id===D.me.id?"（自分）":""}</div>`).join("")}
-    <div class="tlt" style="height:${H}px">${rows.map(x=>`<div class="tlr ${x%60?"half":""}" style="height:${RH}px">${x%60?"":Math.floor(x/60)+":00"}</div>`).join("")}</div>
-    ${colsAll.map(c=>`<div class="tlc" style="height:${H}px">${rows.map(x=>`<div class="tls ${onDuty(c.id,x)?"":"off"} ${x%60?"half":""}" data-s="${c.id}" data-m="${x}" style="height:${RH}px"></div>`).join("")}${dayList.filter(b=>(b.staff_id||"")===c.id).map(blk).join("")}${nowLine}</div>`).join("")}
+    <div class="tlt" style="height:${H}px">${rows.map(x=>`<div class="tlr ${(x+slot)%60?"sub":""}" style="height:${RH}px">${x%60?"":Math.floor(x/60)+":00"}</div>`).join("")}</div>
+    ${colsAll.map(c=>`<div class="tlc" style="height:${H}px">${rows.map(x=>`<div class="tls ${onDuty(c.id,x)?"":"off"} ${(x+slot)%60?"sub":""}" data-s="${c.id}" data-m="${x}" style="height:${RH}px"></div>`).join("")}${dayList.filter(b=>(b.staff_id||"")===c.id).map(blk).join("")}${nowLine}</div>`).join("")}
   </div></div><div class="sub" style="margin-top:6px">${dayLive.length?"予約をタップで変更。":"この日の予約はありません。"}空いている枠をタップすると、その時間・担当で予約を追加できます。斜線は勤務予定外です。</div>`;
   document.querySelectorAll(".bk-edit").forEach(x=>x.onclick=e=>{ e.stopPropagation(); openEdit(x.dataset.id); });
   document.querySelectorAll(".tls").forEach(el=>el.onclick=()=>{ if(el.classList.contains("off") && !confirm("勤務予定外の枠です。この時間で予約を追加しますか？")) return; openForm({ date:SCH.sel, time:m2t(Number(el.dataset.m)), staff:el.dataset.s }); });
