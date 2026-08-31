@@ -199,7 +199,7 @@
           <div class="row" style="justify-content:space-between;margin-top:10px"><button class="ghost sm" id="mo-prev">前の月</button><b id="mo-title"></b><button class="ghost sm" id="mo-next">次の月</button></div>
           <label>塗るパターン（選んでからカレンダーの日をタップ）</label>
           <div class="row" id="mo-pats" style="flex-wrap:wrap;gap:6px"></div>
-          <div class="row" style="flex-wrap:wrap;margin-top:6px"><select id="mo-ploc" style="flex:1 1 100px"></select><input type="time" id="mo-ps" value="10:00" style="flex:1 1 84px"><span>〜</span><input type="time" id="mo-pe" value="22:00" style="flex:1 1 84px"><button class="ghost sm" id="mo-padd">＋ パターンを追加</button></div>
+          <div class="row" style="flex-wrap:wrap;margin-top:6px"><select id="mo-ploc" style="flex:1 1 100%"></select><input type="time" id="mo-ps" value="10:00" style="flex:1 1 92px"><span>〜</span><input type="time" id="mo-pe" value="22:00" style="flex:1 1 92px"><button class="ghost sm" id="mo-padd" style="flex:1 1 100%;margin-top:2px">＋ パターンを追加</button></div>
           <label>まとめて塗る</label>
           <div class="row" id="mo-bulk" style="flex-wrap:wrap;gap:6px"></div>
           <div class="row" style="flex-wrap:wrap;gap:6px;margin-top:6px"><button class="ghost sm" id="mo-copy-prev">前の月と同じにする</button><button class="ghost sm" id="mo-clear">この月を全部クリア</button></div>
@@ -535,7 +535,7 @@ function moMsg(t,kind){ $("#mo-msg").textContent=t||""; $("#mo-msg").className="
 
 function moLoad(){
   if(!LOC.data) return;
-  if(!MO.ym) MO.ym=new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  if(!MO.ym){ const n=new Date(); MO.ym=new Date(n.getFullYear(), n.getMonth()+(n.getDate()>=20?1:0), 1); }  // 月末はふつう翌月分を組むので翌月から
   MO.staff=LOC.cur;
   const km=mkey(MO.ym);
   MO.days={};
@@ -560,7 +560,9 @@ function moRender(){
   if(!LOC.data) return;
   const D=LOC.data, owner=D.role==="owner";
   $("#mo-title").textContent=`${MO.ym.getFullYear()}年${MO.ym.getMonth()+1}月`;
-  $("#mo-ploc").innerHTML=D.locations.filter(l=>l.active).map(l=>`<option value="${l.id}">${l.name}</option>`).join("");
+  const alocs=D.locations.filter(l=>l.active);
+  $("#mo-ploc").innerHTML=alocs.map(l=>`<option value="${l.id}">${l.name}</option>`).join("");
+  $("#mo-ploc").classList.toggle("hide", alocs.length<2);
   const chips=MO.pats.map((p,i)=>`<button class="chip ${MO.sel===String(i)?"on":""}" data-k="${i}"><span class="sw" style="background:${PCOL[i%PCOL.length]}"></span>${patLabel(p)}</button>`);
   chips.push(`<button class="chip ${MO.sel==="off"?"on":""}" data-k="off"><span class="sw" style="background:#fecaca"></span>休み</button>`);
   chips.push(`<button class="chip ${MO.sel==="clear"?"on":""}" data-k="clear">未設定に戻す</button>`);
