@@ -67,7 +67,7 @@
         <div class="row"><button class="ghost" id="be-cancel" style="flex:1">閉じる</button><button id="be-save" style="flex:2">変更して通知</button></div>
         <div class="sub">担当や店舗が変わると顧客へLINE／メールで通知が届きます。キャンセルはiPhoneアプリから行います。</div>
       </div>
-      <div class="card hide" id="bk-form">
+      <div class="card hide" id="bf-form">
         <h2>予約を追加</h2>
         <label>顧客</label>
         <input id="bf-q" placeholder="名前で検索" autocomplete="off">
@@ -76,7 +76,7 @@
         <div id="bf-newc" class="hide" style="margin-top:6px">
           <div class="row"><input id="bf-nname" placeholder="新規顧客の名前"><input id="bf-nphone" placeholder="電話（任意）"></div>
         </div>
-        <label>控えの送付先メール（任意・空なら送りません）</label>
+        <label>控えの送付先メール（任意・空欄なら顧客登録のメールへ。未登録なら送りません）</label>
         <input id="bf-email" type="email" placeholder="example@example.com" autocomplete="off">
         <div class="sub" id="bf-line"></div>
         <div class="row"><div style="flex:1"><label>日付</label><input id="bf-date" type="date"></div><div style="flex:1"><label>開始</label><select id="bf-time"></select></div></div>
