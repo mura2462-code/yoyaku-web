@@ -213,8 +213,22 @@ function renderHome() {
     <div class="sub">予約ごとの<wbr>追加は<wbr>上の<wbr>📅から。<wbr>すべての<wbr>予約を<wbr>自動で<wbr>反映したい方は<wbr>こちらで<wbr>購読できます<wbr>（変更・<wbr>キャンセルも<wbr>追従、<wbr>反映まで<wbr>数時間かかる<wbr>ことがあります）。</div>
     <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap"><button class="ghost" id="cal-google">Googleカレンダー</button><button class="ghost" id="cal-apple">iPhoneカレンダー</button><button class="ghost" id="cal-copy">URLを<wbr>コピー</button></div>
   </div>` : ""}
+  <div class="card"><h2>予約の<wbr>控えの<wbr>受け取り方</h2>
+    <div class="sub">予約の<wbr>確認・<wbr>変更・<wbr>キャンセル・<wbr>前日の<wbr>お知らせを<wbr>どこに<wbr>届けるかを<wbr>選べます。</div>
+    <label>受け取り方</label>
+    <select id="np-pref"><option value="line" ${S.customer.notify_pref==="line"?"selected":""}>LINEのみ</option><option value="mail" ${S.customer.notify_pref==="mail"?"selected":""}>メールのみ</option><option value="both" ${S.customer.notify_pref==="both"||!S.customer.notify_pref?"selected":""}>LINEと<wbr>メールの<wbr>両方</option></select>
+    <label>メールアドレス<wbr>（メールで<wbr>受け取る<wbr>場合）</label>
+    <input id="np-email" type="email" inputmode="email" autocomplete="email" placeholder="example@example.com" value="${esc(S.customer.email||"")}">
+    <div style="margin-top:8px"><button class="ghost" id="np-save">保存</button> <span class="sub" id="np-msg"></span></div>
+  </div>
   <div class="card"><h2>キャンセル規定</h2><div class="sub">開始 ${S.store.cancel_free_until_hours} 時間前まで<wbr>無料。${S.store.late_cancel_consumes ? "それ以降のキャンセルは回数券1回分を消化します。" : ""}日時変更も<wbr>同じ<wbr>期限です。</div></div>`;
   $("#gobook").onclick = () => { view = "book"; render(); };
+  $("#np-save").onclick = async () => {
+    const pref = $("#np-pref").value, email = $("#np-email").value.trim(); $("#np-msg").textContent = "保存中…";
+    if (pref !== "line" && !email) { $("#np-msg").textContent = "メールで受け取るにはメールアドレスを入力してください"; return; }
+    try { await api("update_profile", { email, notify_pref: pref }); S.customer.email = email; S.customer.notify_pref = pref; $("#np-msg").textContent = "保存しました"; }
+    catch (e) { $("#np-msg").textContent = e.message; }
+  };
   api("availability", { days: 7, location_id: (S.defaults || {}).location_id }).then(r => {
     const el = $("#soon"); if (!el) return;
     const days = r.days.filter(d => d.free > 0).slice(0, 3);

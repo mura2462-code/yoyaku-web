@@ -76,7 +76,9 @@
         <div id="bf-newc" class="hide" style="margin-top:6px">
           <div class="row"><input id="bf-nname" placeholder="新規顧客の名前"><input id="bf-nphone" placeholder="電話（任意）"></div>
         </div>
-        <label>控えの送付先メール（任意・空欄なら顧客登録のメールへ。未登録なら送りません）</label>
+        <label>控えの送り方</label>
+        <div class="seg" id="bf-via"><button type="button" data-via="line">LINE</button><button type="button" data-via="mail">メール</button><button type="button" data-via="both" class="on">両方</button></div>
+        <label>控えの送付先メール（空欄なら顧客登録のメールへ。未登録なら送りません）</label>
         <input id="bf-email" type="email" placeholder="example@example.com" autocomplete="off">
         <div class="sub" id="bf-line"></div>
         <div class="row"><div style="flex:1"><label>日付</label><input id="bf-date" type="date"></div><div style="flex:1"><label>開始</label><select id="bf-time"></select></div></div>
@@ -97,7 +99,7 @@
         <input id="cust-search" placeholder="名前で絞り込み" style="margin-bottom:6px">
         <div id="cust-list"><div class="sub">読み込み中…</div></div>
       </div>
-      <p class="sub">「口コミ案内」は、書いてくれそうな方を選んで押すとGoogle口コミのお願いを1通だけ送ります。連投は防止されます。</p>
+      <p class="sub">「控え」は予約確認・変更・キャンセル・前日リマインドの送り方です（LINEは連携済み、メールは登録済みの方のみ選べます）。「口コミ案内」は、書いてくれそうな方を選んで押すとGoogle口コミのお願いを1通だけ送ります。連投は防止されます。</p>
     </div>
 
     <div id="view-msg" class="hide">
@@ -212,9 +214,11 @@ function renderCusts(){
     const tk = c.ticket_remaining>0 ? `<span class="tag">券${c.ticket_remaining}</span>` : "";
     const done = c.review_requested_at ? `<span class="tag ok">案内済 ${fmtDate(c.review_requested_at)}</span>` : "";
     const btn = `<button class="sm ghost msgto" data-id="${c.id}">メッセージ</button>` + (c.linked ? ` <button class="sm review" data-id="${c.id}" data-name="${c.name}">口コミ案内</button>` : "");
-    return `<div class="cust"><div><div>${c.name}</div><div class="sub">最終 ${daysAgo(c.last_visit)}・${c.upcoming?"予約あり":"予約なし"} ${linked}${tk}${done}</div></div><div>${btn}</div></div>`;
+    const pref=c.notify_pref||"both"; const via = `<select class="pref" data-id="${c.id}" style="width:auto;padding:4px 6px;font-size:12px;margin-top:4px"><option value="line" ${pref==="line"?"selected":""} ${c.linked?"":"disabled"}>控え: LINE</option><option value="mail" ${pref==="mail"?"selected":""} ${c.email?"":"disabled"}>控え: メール</option><option value="both" ${pref==="both"?"selected":""}>控え: 両方</option></select>`;
+    return `<div class="cust"><div><div>${c.name}</div><div class="sub">最終 ${daysAgo(c.last_visit)}・${c.upcoming?"予約あり":"予約なし"} ${linked}${tk}${done}</div>${via}</div><div>${btn}</div></div>`;
   }).join("") || `<div class="sub">該当する顧客がいません。</div>`;
   document.querySelectorAll(".msgto").forEach(b=> b.onclick=()=>{ view="msg"; render(); openRoom(b.dataset.id); });
+  document.querySelectorAll(".pref").forEach(sel=> sel.onchange=async()=>{ sel.disabled=true; try{ await ops("customer_update",{ customer_id:sel.dataset.id, notify_pref:sel.value }); const c=CUSTS.find(x=>x.id===sel.dataset.id); if(c) c.notify_pref=sel.value; }catch(e){ alert(e.message); renderCusts(); } sel.disabled=false; });
   document.querySelectorAll(".review").forEach(b=> b.onclick = async ()=>{
     if(!confirm(`${b.dataset.name} さんに口コミのお願いを送ります。よろしいですか？`)) return;
     b.disabled=true;
@@ -303,16 +307,20 @@ function openForm(){
   const st=SCH.data?.staffs||[]; $("#bf-staff").innerHTML = `<option value="">自動（店舗の優先順位で割当）</option>`+st.filter(s=>s.active).map(s=>`<option value="${s.id}" ${s.id===SCH.data.me.id?"selected":""}>${s.name}</option>`).join("");
   const locs=(SCH.data?.locations||[]).filter(l=>l.active); $("#bf-locwrap").classList.toggle("hide", locs.length<=1);
   $("#bf-loc").innerHTML = locs.map(l=>`<option value="${l.id}" ${(SCH.loc!=="all"?SCH.loc:(SCH.data.me.locations||[])[0])===l.id?"selected":""}>${l.name}</option>`).join(""); $("#bf-nom").checked=false;
-  $("#bf-form").classList.remove("hide"); $("#bf-q").focus();
+  setVia("both", true); $("#bf-form").classList.remove("hide"); $("#bf-q").focus();
 }
+// 控えの送り方（LINE未連携の顧客はLINEを選べない）
+function setVia(v, lineOk){ if(!lineOk && v!=="mail") v="mail"; document.querySelectorAll("#bf-via button").forEach(b=>{ b.classList.toggle("on", b.dataset.via===v); b.disabled = !lineOk && b.dataset.via!=="mail"; }); }
+const getVia=()=>document.querySelector("#bf-via button.on")?.dataset.via||"both";
+document.querySelectorAll("#bf-via button").forEach(b=>b.onclick=()=>{ if(!b.disabled) setVia(b.dataset.via, !b.disabled); });
 $("#bk-new").onclick=openForm; $("#bf-cancel").onclick=()=>$("#bf-form").classList.add("hide");
 $("#bf-q").oninput=()=>{ const q=$("#bf-q").value.trim(); BF.cid=null; $("#bf-cid").value="";
   const hits=q?CUSTS.filter(c=>c.name.includes(q)).slice(0,8):[];
   $("#bf-cands").innerHTML = hits.map(c=>`<a href="#" data-id="${c.id}" style="display:block;padding:6px 0;border-top:1px solid var(--line);color:var(--txt);text-decoration:none">${c.name} <span class="sub">${c.linked?"LINE連携済":"LINE未連携"}${c.email?"・メールあり":""}</span></a>`).join("") + (q?`<a href="#" data-new="1" style="display:block;padding:6px 0;border-top:1px solid var(--line);color:var(--acc);text-decoration:none">「${q}」を新規顧客として登録</a>`:"");
   document.querySelectorAll("#bf-cands a").forEach(a=>a.onclick=e=>{ e.preventDefault();
-    if(a.dataset.new){ $("#bf-newc").classList.remove("hide"); $("#bf-nname").value=q; BF.cust=null; $("#bf-line").textContent="新規顧客（LINE未連携）。控えはメールのみ"; $("#bf-cands").innerHTML=""; return; }
+    if(a.dataset.new){ $("#bf-newc").classList.remove("hide"); $("#bf-nname").value=q; BF.cust=null; $("#bf-line").textContent="新規顧客（LINE未連携）。控えはメールのみ"; $("#bf-cands").innerHTML=""; setVia("mail", false); return; }
     const c=CUSTS.find(x=>x.id===a.dataset.id); BF.cid=c.id; BF.cust=c; $("#bf-q").value=c.name; $("#bf-newc").classList.add("hide"); $("#bf-email").value=c.email||""; $("#bf-cands").innerHTML="";
-    $("#bf-line").textContent = c.linked ? "LINE連携済：LINEにも控えが届きます" : "LINE未連携：控えはメールのみ"; });
+    $("#bf-line").textContent = c.linked ? "LINE連携済：LINEにも控えが届きます" : "LINE未連携：控えはメールのみ"; setVia(c.notify_pref||"both", c.linked); });
 };
 $("#bf-save").onclick=async()=>{
   const msg=(t,cls)=>{ $("#bf-msg").textContent=t; $("#bf-msg").className="msg "+(cls||""); };
@@ -321,9 +329,9 @@ $("#bf-save").onclick=async()=>{
   const date=$("#bf-date").value, time=$("#bf-time").value; if(!date||!time) return msg("日時を指定してください","err");
   $("#bf-save").disabled=true; msg("登録中…");
   try{
-    if(!cid){ const j=await ops("customer_create",{ name:$("#bf-nname").value.trim(), phone:$("#bf-nphone").value.trim(), email }); cid=j.customer.id; }
+    if(!cid){ const j=await ops("customer_create",{ name:$("#bf-nname").value.trim(), phone:$("#bf-nphone").value.trim(), email, notify_pref:getVia() }); cid=j.customer.id; }
     const start_at=new Date(`${date}T${time}:00+09:00`).toISOString();
-    const j=await ops("booking_create",{ customer_id:cid, start_at, duration_minutes:Number($("#bf-dur").value), menu:$("#bf-menu").value.trim(), note:$("#bf-note").value.trim(), email, staff_id:$("#bf-staff").value, location_id:$("#bf-loc").value||undefined, nominated:$("#bf-nom").checked });
+    const j=await ops("booking_create",{ customer_id:cid, start_at, duration_minutes:Number($("#bf-dur").value), menu:$("#bf-menu").value.trim(), note:$("#bf-note").value.trim(), email, staff_id:$("#bf-staff").value, location_id:$("#bf-loc").value||undefined, nominated:$("#bf-nom").checked, notify_via:getVia() });
     msg(`登録しました。控え：LINE ${j.notify.line?"送信":"なし（未連携）"} / メール ${j.notify.mail?"送信":"なし"}`,"ok");
     SCH.sel=date; SCH.base=weekStart(new Date(date+"T00:00:00")); await Promise.all([loadSched(), loadCusts()]);
     setTimeout(()=>$("#bf-form").classList.add("hide"),1500);
