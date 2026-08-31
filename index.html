@@ -241,7 +241,8 @@ function renderHome() {
     <input id="np-email" type="email" inputmode="email" autocomplete="email" placeholder="example@example.com" value="${esc(S.customer.email||"")}">
     <div style="margin-top:8px"><button class="ghost" id="np-save">保存</button> <span class="sub" id="np-msg"></span></div>
   </div>
-  <div class="card"><h2>キャンセル規定</h2><div class="sub">開始 ${S.store.cancel_free_until_hours} 時間前まで<wbr>無料。${S.store.late_cancel_consumes ? "それ以降のキャンセルは回数券1回分を消化します。" : ""}日時変更も<wbr>同じ<wbr>期限です。</div></div>`;
+  <div class="card"><h2>キャンセル規定</h2><div class="sub">開始 ${S.store.cancel_free_until_hours} 時間前まで<wbr>無料。${S.store.late_cancel_consumes ? "それ以降のキャンセルは回数券1回分を消化します。" : ""}日時変更も<wbr>同じ<wbr>期限です。</div></div>
+  <div class="sub" style="text-align:center;margin:4px 0 8px"><a href="privacy.html?store=${encodeURIComponent(S.store.name)}" style="color:var(--sub)">個人情報の<wbr>取扱いに<wbr>ついて</a></div>`;
   $("#gobook").onclick = () => { view = "book"; render(); };
   $("#np-save").onclick = async () => {
     const pref = $("#np-pref").value, email = $("#np-email").value.trim(); $("#np-msg").textContent = "保存中…";
