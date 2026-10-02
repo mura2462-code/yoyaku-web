@@ -61,6 +61,15 @@
   .chip{border:1px solid var(--line);background:var(--bg);color:var(--txt);border-radius:999px;padding:6px 11px;font-size:12px;font-weight:600}
   .chip.on{border-color:var(--acc);box-shadow:0 0 0 2px rgba(37,99,235,.35)}
   .chip .sw{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;border:1px solid rgba(0,0,0,.15);vertical-align:-1px}
+  /* 分析 */
+  .kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}@media(min-width:640px){.kpis{grid-template-columns:repeat(4,1fr)}}
+  .kpi{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px}.kpi b{display:block;font-size:22px;font-variant-numeric:tabular-nums;line-height:1.3}.kpi span{font-size:11px;color:var(--sub)}.kpi i{font-style:normal;font-size:11px;color:var(--sub);display:block}
+  .bars{display:flex;align-items:flex-end;gap:2px;height:140px;border-bottom:1px solid var(--line);padding-top:6px}.bars>div{flex:1 1 0;min-width:3px;display:flex;flex-direction:column;justify-content:flex-end;height:100%;cursor:default}
+  .bars .l{background:var(--acc);border-radius:4px 4px 0 0}.bars .x{background:transparent;border:1.5px dashed var(--danger);border-bottom:none;border-radius:4px 4px 0 0;margin-bottom:2px}
+  .axis{display:flex;justify-content:space-between;font-size:10px;color:var(--sub);margin-top:3px;font-variant-numeric:tabular-nums}
+  .heat{display:grid;grid-template-columns:22px repeat(var(--hc),1fr);gap:2px;font-size:10px;color:var(--sub)}.heat div{text-align:center;line-height:20px;border-radius:3px;font-variant-numeric:tabular-nums}
+  .hb{display:grid;grid-template-columns:minmax(80px,32%) 1fr auto;gap:8px;align-items:center;border-top:1px solid var(--line);padding:7px 0;font-size:13px}.hb:first-child{border-top:none}.hb .t{height:10px;background:var(--acc);border-radius:0 4px 4px 0;min-width:2px}.hb .v{font-variant-numeric:tabular-nums;color:var(--sub);font-size:12px;white-space:nowrap}
+  .note{font-size:11px;color:var(--sub);margin-top:6px;line-height:1.6}
   .hide{display:none}.msg{font-size:13px;margin:8px 0;min-height:18px}.msg.err{color:var(--danger)}.msg.ok{color:var(--ok)}
 </style></head><body>
 <div class="wrap">
@@ -178,6 +187,18 @@
       </div>
     </div>
 
+    <div id="view-ana" class="hide">
+      <div class="card">
+        <h2>分析</h2>
+        <div class="seg" id="ana-range"><button data-r="m0" class="on">今月</button><button data-r="m1">先月</button><button data-r="d30">30日</button><button data-r="d90">90日</button><button data-r="c">期間指定</button></div>
+        <div class="row hide" id="ana-custom" style="gap:8px;margin-top:8px"><input type="date" id="ana-from"><input type="date" id="ana-to"><button class="sm" id="ana-go">表示</button></div>
+        <select id="ana-loc" class="hide" style="margin-top:8px"></select>
+        <div class="sub" id="ana-period" style="margin-top:8px"></div>
+        <div class="msg" id="ana-msg"></div>
+      </div>
+      <div id="ana-body"></div>
+    </div>
+
     <div id="view-set" class="hide">
       <div class="card">
         <h2>設定</h2>
@@ -238,6 +259,7 @@
     <button data-v="cust">顧客</button>
     <button data-v="msg">メッセージ<span id="nav-badge" class="badge hide" style="margin-left:4px"></span></button>
     <button data-v="cast" id="nav-cast">配信</button>
+    <button data-v="ana" id="nav-ana">分析</button>
     <button data-v="set" id="nav-set">設定</button>
   </nav>
 </div>
@@ -756,14 +778,69 @@ document.querySelectorAll("nav button").forEach(b=> b.onclick=()=>{ view=b.datas
 function render(){
   if(view==="msg"){ loadThreads(); if(MSG.cid) refreshRoom(); }
   if(view==="cast") loadCasts();
-  ["sched","cust","msg","cast","set"].forEach(v=> $("#view-"+v).classList.toggle("hide", v!==view));
+  if(view==="ana") loadAna();
+  ["sched","cust","msg","cast","ana","set"].forEach(v=> $("#view-"+v).classList.toggle("hide", v!==view));
   document.querySelectorAll("nav button").forEach(b=> b.classList.toggle("on", b.dataset.v===view));
+}
+
+// ---- 分析（owner） ----
+const ANA={ r:"m0", loc:"all", data:null };
+function anaRange(){
+  const t=new Date(), Y=t.getFullYear(), M=t.getMonth();
+  if(ANA.r==="m0") return [ymd(new Date(Y,M,1)), ymd(t)];
+  if(ANA.r==="m1") return [ymd(new Date(Y,M-1,1)), ymd(new Date(Y,M,0))];
+  if(ANA.r==="d30"||ANA.r==="d90"){ const n=ANA.r==="d30"?30:90; const f=new Date(t); f.setDate(f.getDate()-n+1); return [ymd(f), ymd(t)]; }
+  return [$("#ana-from").value, $("#ana-to").value];
+}
+document.querySelectorAll("#ana-range button").forEach(b=>b.onclick=()=>{ ANA.r=b.dataset.r;
+  document.querySelectorAll("#ana-range button").forEach(x=>x.classList.toggle("on",x===b));
+  $("#ana-custom").classList.toggle("hide", ANA.r!=="c");
+  if(ANA.r==="c"){ const [f,t]=[ymd(new Date(new Date().setDate(new Date().getDate()-29))), ymd(new Date())]; if(!$("#ana-from").value) $("#ana-from").value=f; if(!$("#ana-to").value) $("#ana-to").value=t; }
+  else loadAna(); });
+$("#ana-go").onclick=()=>loadAna();
+$("#ana-loc").onchange=()=>{ ANA.loc=$("#ana-loc").value; loadAna(); };
+const pct=(a,b)=>b?Math.round(a/b*1000)/10+"%":"—";
+const delta=(c,p,unit="")=>{ if(p===null||p===undefined) return ""; const d=Math.round((c-p)*10)/10; return `前期間 ${p}${unit}（${d>0?"+":""}${d}${unit}）`; };
+async function loadAna(){
+  const [from,to]=anaRange(); if(!from||!to){ $("#ana-msg").textContent="期間を選んでください"; $("#ana-msg").className="msg err"; return; }
+  const locs=(SCH.data?.locations||[]).filter(l=>l.active);
+  if(locs.length>1){ $("#ana-loc").classList.remove("hide"); $("#ana-loc").innerHTML=`<option value="all">全店舗</option>`+locs.map(l=>`<option value="${l.id}" ${ANA.loc===l.id?"selected":""}>${esc(l.name)}</option>`).join(""); }
+  $("#ana-msg").textContent="集計中…"; $("#ana-msg").className="msg";
+  try{ ANA.data=await ops("analytics",{ from, to, location:ANA.loc }); $("#ana-msg").textContent=""; renderAna(); }
+  catch(e){ $("#ana-msg").textContent=e.message; $("#ana-msg").className="msg err"; }
+}
+function renderAna(){
+  const D=ANA.data, c=D.current, p=D.previous; const sd=s=>s.slice(5).replace("-","/");
+  $("#ana-period").textContent=`${D.from.replace(/-/g,"/")}〜${sd(D.to)}（${D.days}日）　比較：${sd(D.prev_from)}〜${sd(D.prev_to)}`;
+  const cr=c.total?Math.round(c.cancel/c.total*1000)/10:0, pr=p.total?Math.round(p.cancel/p.total*1000)/10:null;
+  const kpi=(v,label,sub)=>`<div class="kpi"><b>${v}</b><span>${label}</span><i>${sub||""}</i></div>`;
+  const kpis=`<div class="kpis">${kpi(c.live,"予約（予約中＋来店済み）",delta(c.live,p.live,"件"))}${kpi(c.new_customers,"新規のお客様",delta(c.new_customers,p.new_customers,"人"))}${kpi(c.total?cr+"%":"—","キャンセル率",p.total?delta(cr,pr,"%"):"")}${kpi(c.customers,"来店・予約した人数",delta(c.customers,p.customers,"人"))}</div>
+    <div class="note">内訳：来店済み ${c.status.done}・予約中 ${c.status.booked}・キャンセル ${c.status.cancelled}・直前キャンセル ${c.status.late_cancelled}・無断キャンセル ${c.status.no_show}（計 ${c.total}件）<br>キャンセル率＝（キャンセル＋直前キャンセル）÷ 期間内の全予約。無断キャンセルは別に数えています。新規＝初めての予約（キャンセルを除く）がこの期間にある人。</div>`;
+  const mx=Math.max(1,...D.trend.map(t=>t.live+t.cancel+t.no_show));
+  const bars=D.trend.map(t=>{ const tip=`${t.key.slice(5).replace("-","/")}${D.weekly?"の週":""}：予約 ${t.live}・キャンセル ${t.cancel}${t.no_show?"・無断 "+t.no_show:""}`;
+    return `<div title="${tip}"><div class="x" style="height:${(t.cancel+t.no_show)/mx*100}%;${t.cancel+t.no_show?"":"border:none"}"></div><div class="l" style="height:${t.live/mx*100}%"></div></div>`; }).join("");
+  const ends=D.trend.length?`<div class="axis"><span>${sd(D.trend[0].key)}</span><span>最大 ${mx}件</span><span>${sd(D.trend[D.trend.length-1].key)}</span></div>`:"";
+  const trend=`<div class="card"><h2>予約の推移（${D.weekly?"週別":"日別"}）</h2><div class="row" style="gap:12px;font-size:11px;color:var(--sub);margin-bottom:4px"><span><span class="sw" style="display:inline-block;width:10px;height:10px;background:var(--acc);border-radius:2px;vertical-align:-1px"></span> 予約</span><span><span style="display:inline-block;width:10px;height:10px;border:1.5px dashed var(--danger);border-radius:2px;vertical-align:-1px"></span> キャンセル・無断</span></div><div class="bars">${bars}</div>${ends}<div class="note">棒にカーソルを当てる（スマホは長押し）と件数が出ます。</div></div>`;
+  // 曜日×時間（営業時間の範囲だけ）
+  const st=SCH.data?.store||{open_time:"09:00",close_time:"22:00"}; const oh=parseInt(st.open_time), ch=Math.ceil(parseInt(st.close_time)+(String(st.close_time).slice(3,5)!=="00"?1:0));
+  const hrs=[]; for(let h=oh;h<Math.max(ch,oh+1);h++) hrs.push(h);
+  const hm2=Math.max(1,...D.heat.flat()); const order=[1,2,3,4,5,6,0];
+  let heat=`<div></div>`+hrs.map(h=>`<div>${h}</div>`).join("");
+  for(const w of order){ heat+=`<div>${"日月火水木金土"[w]}</div>`+hrs.map(h=>{ const n=D.heat[w][h]; return `<div title="${"日月火水木金土"[w]}曜 ${h}時台：${n}件" style="background:${n?`rgba(37,99,235,${0.15+0.85*n/hm2})`:"var(--bg)"};color:${n/hm2>0.55?"#fff":"var(--sub)"}">${n||""}</div>`; }).join(""); }
+  const outside=D.heat.flat().reduce((a,b)=>a+b,0)-order.reduce((a,w)=>a+hrs.reduce((x,h)=>x+D.heat[w][h],0),0);
+  const heatCard=`<div class="card"><h2>混む曜日と時間（予約の開始時刻）</h2><div style="overflow-x:auto"><div class="heat" style="--hc:${hrs.length};min-width:${hrs.length*20+30}px">${heat}</div></div>${outside?`<div class="note">営業時間外に始まる予約が ${outside}件あります（表には出していません）。</div>`:""}</div>`;
+  const hbars=(title,rows,valFn,note)=>{ const m=Math.max(1,...rows.map(r=>r.live)); return `<div class="card"><h2>${title}</h2>${rows.length?rows.map(r=>`<div class="hb"><div>${esc(r.label)}</div><div><div class="t" style="width:${r.live/m*100}%"></div></div><div class="v">${valFn(r)}</div></div>`).join(""):'<div class="sub">この期間の予約はありません。</div>'}${note?`<div class="note">${note}</div>`:""}</div>`; };
+  const cv=r=>`${r.live}件・キャンセル ${pct(r.cancel,r.live+r.cancel+r.no_show)}`;
+  const nbs=D.new_by_source; const nbm=Math.max(1,...nbs.map(x=>x.n));
+  const srcNew=`<div class="card"><h2>新規のお客様はどこから来たか</h2>${nbs.length?nbs.map(x=>`<div class="hb"><div>${esc(x.label)}</div><div><div class="t" style="width:${x.n/nbm*100}%"></div></div><div class="v">${x.n}人</div></div>`).join(""):'<div class="sub">この期間の新規はいません。</div>'}<div class="note">予約URLの末尾に ?src=gbp（Googleマップ）・?src=ig（Instagram）・?src=flyer（チラシ）のように付けて配ると、ここに分かれて出ます。付けていない入口は「記録なし」になります。</div></div>`;
+  const tr=D.trial; const trialCard=`<div class="card"><h2>体験のあと続いたか</h2>${tr.customers?`<div class="kpis" style="grid-template-columns:repeat(2,1fr)">${kpi(tr.customers,"初回のみコースを受けた人","この期間に来店済み")}${kpi(pct(tr.followed,tr.customers),"そのあと次の予約がある人",`${tr.followed}人`)}</div>`:'<div class="sub">この期間に「初回のみ」のコースで来店した人はいません。</div>'}<div class="note">設定→コースで「初回のみ」にしたコースを体験として数えます。次の予約＝体験以外のコースで、予約中か来店済みのもの（回数券の購入は含みません）。</div></div>`;
+  $("#ana-body").innerHTML = `<div class="card">${kpis}</div>`+trend+heatCard+srcNew+hbars("コース別",D.by_course,cv)+hbars("予約の入口別（予約ごと）",D.by_source,cv)+trialCard+hbars("担当別",D.by_staff,r=>`${r.live}件・${Math.round(r.minutes/60*10)/10}h`);
 }
 
 async function boot(){
   try{ const j=await ops("settings_get"); ME={ role:j.role };
     const owner = j.role==="owner";
-    $("#nav-cast").classList.toggle("hide", !owner); document.querySelector("#view-set .card").classList.toggle("hide", !owner);
+    $("#nav-cast").classList.toggle("hide", !owner); $("#nav-ana").classList.toggle("hide", !owner); document.querySelector("#view-set .card").classList.toggle("hide", !owner);
     $("#review-url").value = j.settings.google_review_url||"";
     $("#review-tpl").value = j.settings.review_msg_template||"";
     $("#hello").textContent = owner ? "管理（オーナー）" : "顧客対応";
