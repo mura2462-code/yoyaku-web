@@ -68,6 +68,10 @@
 /* 逆にメールアドレス・URL は長いので、どこで切ってでも溢れさせない */
 :where(a[href^="mailto:"],a[href^="http"],.jp-break,code,kbd,samp){ overflow-wrap: anywhere; }
 
+/* 括弧でくくった語（「…」（…）【…】など）は途中で折らない。短いものは .jp-nowrap、
+   長いもの（全角16字超）は「かたまりごと次の行へ送り、それでも入らなければ中で折る」 */
+.jp-keep{ display:inline-block; max-width:100%; text-decoration:inherit; text-indent:0; }
+
 /* 数字＋単位・記号の分断防止（例: 500 件, 8:00〜20:00） */
 .jp-unit{ white-space: nowrap; }
 
@@ -160,6 +164,13 @@ const fmtDT = iso => new Date(iso).toLocaleString("ja-JP", { month: "numeric", d
 const fmtT = iso => new Date(iso).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; };
 
+// 流入元（予約URLの ?src=gbp 等）。同じ端末で後から開き直しても最初の値を使えるよう保存する（保存できない環境でも動く）
+const SRC = (() => {
+  const u = (new URLSearchParams(location.search).get("src") || "").toLowerCase();
+  const ok = /^[a-z0-9_-]{1,40}$/.test(u) ? u : "";
+  try { if (ok) localStorage.setItem("yoyaku_src", ok); return ok || localStorage.getItem("yoyaku_src") || ""; } catch (e) { return ok; }
+})();
+
 async function boot() {
   await liff.init({ liffId: LIFF_ID });
   if (!liff.isLoggedIn()) { liff.login(); return; }
@@ -198,7 +209,7 @@ function renderRegister(lineName) {
     <label>お名前</label><input id="rn" value="${esc(lineName)}">
     <label>電話番号<wbr>（任意）</label><input id="rp" inputmode="tel">
     <div style="margin-top:14px"><button id="rgo">登録して<wbr>始める</button></div></div>`;
-  $("#rgo").onclick = async () => { try { await api("register", { name: $("#rn").value.trim(), phone: $("#rp").value.trim() }); await load(); } catch (e) { alert(e.message); } };
+  $("#rgo").onclick = async () => { try { await api("register", { name: $("#rn").value.trim(), phone: $("#rp").value.trim(), source: SRC }); await load(); } catch (e) { alert(e.message); } };
 }
 
 function renderHome() {
@@ -230,7 +241,7 @@ function renderHome() {
     <div id="soon" class="sub" style="margin-top:8px"></div>
   </div>
   ${S.calendar && S.calendar.ics_url ? `<div class="card"><h2>カレンダー連携</h2>
-    <div class="sub">予約ごとの<wbr>追加は<wbr>上の<wbr>📅から。<wbr>すべての<wbr>予約を<wbr>自動で<wbr>反映したい方は<wbr>こちらで<wbr>購読できます<wbr>（変更・<wbr>キャンセルも<wbr>追従、<wbr>反映まで<wbr>数時間かかる<wbr>ことがあります）。</div>
+    <div class="sub">予約ごとの<wbr>追加は<wbr>上の<wbr>📅から。<wbr>すべての<wbr>予約を<wbr>自動で<wbr>反映したい方は<wbr>こちらで<wbr>購読できます<wbr>（変更・<wbr>キャンセルも<wbr>追従、<wbr>反映まで<wbr>数時間かかることがあります）。</div>
     <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap"><button class="ghost" id="cal-google">Googleカレンダー</button><button class="ghost" id="cal-apple">iPhoneカレンダー</button><button class="ghost" id="cal-copy">URLを<wbr>コピー</button></div>
   </div>` : ""}
   <div class="card"><h2>予約の<wbr>控えの<wbr>受け取り方</h2>
@@ -242,7 +253,7 @@ function renderHome() {
     <div style="margin-top:8px"><button class="ghost" id="np-save">保存</button> <span class="sub" id="np-msg"></span></div>
   </div>
   <div class="card"><h2>キャンセル規定</h2><div class="sub">開始 ${S.store.cancel_free_until_hours} 時間前まで<wbr>無料。${S.store.late_cancel_consumes ? "それ以降のキャンセルは回数券1回分を消化します。" : ""}日時変更も<wbr>同じ<wbr>期限です。</div></div>
-  <div class="sub" style="text-align:center;margin:4px 0 8px"><a href="privacy.html?store=${encodeURIComponent(S.store.name)}" style="color:var(--sub)">個人情報の<wbr>取扱いに<wbr>ついて</a></div>`;
+  <div class="sub" style="text-align:center;margin:4px 0 8px"><a href="privacy.html?store=${encodeURIComponent(S.store.name)}" style="color:var(--sub)">個人情報の<wbr>取扱いについて</a></div>`;
   $("#gobook").onclick = () => { view = "book"; render(); };
   $("#np-save").onclick = async () => {
     const pref = $("#np-pref").value, email = $("#np-email").value.trim(); $("#np-msg").textContent = "保存中…";
@@ -301,13 +312,14 @@ async function renderBook(rescheduleId = null) {
   document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b.dataset.v === "book"));
   const reB = rescheduleId ? S.upcoming.find(x => x.id === rescheduleId) : null;
   const dflt = S.defaults || {};
-  bookState = { from: bookState.from || today(), duration: reB ? reB.duration_minutes : S.store.default_duration, slot: null, re: rescheduleId,
+  const courses = S.courses || [];
+  const c0 = reB ? null : (courses.find(c => c.id === bookState.course) || courses[0] || null);
+  bookState = { from: bookState.from || today(), duration: reB ? reB.duration_minutes : (c0 ? c0.duration_minutes : S.store.default_duration), course: c0 ? c0.id : "", slot: null, re: rescheduleId,
     loc: reB ? (reB.location_id || dflt.location_id) : (bookState.loc || dflt.location_id || (S.locations[0] || {}).id), staff: reB ? (reB.nominated ? reB.staff_id : "") : (bookState.staff !== undefined ? bookState.staff : (dflt.staff_id || "")) };
   if (bookState.from < today()) bookState.from = today();
   const locs = S.locations || [], staffsAt = id => (S.staffs || []).filter(x => x.locations.includes(id));
   app.innerHTML = `<div class="card"><h2>${reB ? "予約の変更：" + fmtDT(reB.start_at) + " →" : "予約する"}</h2>${reB ? `<div class="sub">日時の<wbr>ほか、<wbr>店舗・<wbr>担当の<wbr>指名も<wbr>変えられます。<wbr>同じ<wbr>日時の<wbr>まま<wbr>担当だけ<wbr>変える<wbr>場合も<wbr>時間を<wbr>選び直して<wbr>ください。</div>` : ""}
-    ${reB ? "" : `<label>時間</label><select id="bdur">${[30,45,60,90].map(m => `<option value="${m}" ${m===bookState.duration?"selected":""}>${m}分</option>`).join("")}</select>
-    <label>メニュー</label><select id="bmenu"><option>パーソナル</option><option>体験</option><option>カウンセリング</option></select>`}
+    ${reB || !courses.length ? "" : `<label>コース</label><select id="bcourse">${courses.map(c => `<option value="${c.id}" ${c.id===bookState.course?"selected":""}>${esc(c.name)}（${c.duration_minutes}分${c.price != null ? "・" + Number(c.price).toLocaleString() + "円" : ""}）</option>`).join("")}</select><div class="sub" id="bcdesc"></div>`}
     ${locs.length > 1 ? `<label>店舗</label><div class="slots" id="locs">${locs.map(l => `<button data-l="${l.id}" class="${l.id===bookState.loc?"sel":""}">${esc(l.name)}</button>`).join("")}</div>` : ""}
     <label>担当の<wbr>指名</label><select id="bstaff"></select>
     <label>空き状況<wbr>（◎○を<wbr>タップして<wbr>日時を<wbr>選ぶ）</label>
@@ -358,7 +370,7 @@ async function renderBook(rescheduleId = null) {
   const loadAvail = async () => {
     $("#grid").innerHTML = `<tbody><tr><td class="sub" style="padding:14px">読み込み中…</td></tr></tbody>`; $("#bgo").disabled = true;
     try {
-      const r = await api("availability", { from: bookState.from, days: 7, duration: bookState.duration, location_id: bookState.loc, staff_id: bookState.staff || "" });
+      const r = await api("availability", { from: bookState.from, days: 7, course_id: bookState.course || "", booking_id: reB ? reB.id : "", location_id: bookState.loc, staff_id: bookState.staff || "" });
       avail = r.days;
       if (bookState.slot && !avail.some(d => d.slots.includes(bookState.slot))) bookState.slot = null;
       drawGrid();
@@ -366,14 +378,15 @@ async function renderBook(rescheduleId = null) {
   };
   const shift = n => { let f = addDays(bookState.from, n); if (f < today()) f = today(); bookState.from = f; bookState.slot = null; loadAvail(); };
   $("#dprev").onclick = () => shift(-7); $("#dnext").onclick = () => shift(7);
-  if (!reB) $("#bdur").onchange = () => { bookState.duration = Number($("#bdur").value); bookState.slot = null; loadAvail(); };
+  const drawCourse = () => { const c = courses.find(x => x.id === bookState.course); if ($("#bcdesc")) $("#bcdesc").textContent = c ? c.description || "" : ""; };
+  if ($("#bcourse")) { drawCourse(); $("#bcourse").onchange = () => { const c = courses.find(x => x.id === $("#bcourse").value); bookState.course = c ? c.id : ""; bookState.duration = c ? c.duration_minutes : S.store.default_duration; bookState.slot = null; drawCourse(); loadAvail(); }; }
   loadAvail();
   $("#bgo").onclick = async () => {
     $("#bgo").disabled = true;
     try {
       let made = null;
       if (reB) made = await api("reschedule", { booking_id: reB.id, start_at: bookState.slot, location_id: bookState.loc, staff_id: bookState.staff || "" });
-      else made = await api("book", { start_at: bookState.slot, duration: bookState.duration, menu: $("#bmenu").value, note: $("#bnote").value, location_id: bookState.loc, staff_id: bookState.staff || "" });
+      else made = await api("book", { start_at: bookState.slot, course_id: bookState.course || "", source: SRC, note: $("#bnote").value, location_id: bookState.loc, staff_id: bookState.staff || "" });
       alert((reB ? "変更" : "予約") + "しました：" + fmtDT(bookState.slot) + "\nカレンダーに追加する場合は次の画面で選べます。");
       view = "home"; await load();
       const bid = (made && made.booking && made.booking.id) || (reB && reB.id);
@@ -405,7 +418,7 @@ function renderTrain() {
   app.innerHTML = `
   <div class="card"><h2>自己ベスト<wbr>（推定1RM）</h2>
     ${bests.map(b => `<div class="row"><span>${esc(b.exercise_name)}</span><span><b>${Math.round(b.est_1rm || b.max_weight)}</b> kg <span class="sub">${d(b.last_done_on)}</span></span></div>`).join("") || `<div class="sub">記録が<wbr>たまると<wbr>表示されます</div>`}
-    ${bests.length ? `<div class="sub" style="margin-top:8px">1RM<wbr>＝1回だけ挙げられる<wbr>最大重量の<wbr>推定値<wbr>（重量×(1＋<wbr>回数÷30)）。</div>` : ""}
+    ${bests.length ? `<div class="sub" style="margin-top:8px">1RM<wbr>＝1回だけ<wbr>挙げられる<wbr>最大重量の<wbr>推定値<wbr>（重量×(1＋<wbr>回数÷30)）。</div>` : ""}
   </div>
   <div class="card"><h2>トレーニング履歴</h2>
     ${ws.map(w => {
