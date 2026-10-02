@@ -109,6 +109,7 @@
         <input id="bf-email" type="email" placeholder="example@example.com" autocomplete="off">
         <div class="sub" id="bf-line"></div>
         <div class="row"><div style="flex:1"><label>日付</label><input id="bf-date" type="date"></div><div style="flex:1"><label>開始</label><select id="bf-time"></select></div></div>
+        <label>コース（選ぶと時間とメニュー名が入ります）</label><select id="bf-course"></select>
         <div class="row"><div style="flex:1"><label>時間</label><select id="bf-dur"><option value="30">30分</option><option value="45">45分</option><option value="60" selected>60分</option><option value="75">75分</option><option value="90">90分</option><option value="120">120分</option></select></div><div style="flex:1"><label>担当</label><select id="bf-staff"></select></div></div>
         <div id="bf-locwrap" class="hide"><label>店舗</label><select id="bf-loc"></select></div>
         <label class="row" style="gap:6px"><input type="checkbox" id="bf-nom" style="width:auto"> 顧客からの指名として登録</label>
@@ -155,15 +156,25 @@
           <option value="ticket_low">回数券の残りが1回以下</option>
           <option value="ticket_zero">回数券の残りが0</option>
         </select>
+        <label>タグで絞る（任意・カンマ区切り。どれか1つが付いている人）</label>
+        <input id="cast-tags" placeholder="例）体験済み, 減量">
+        <label>流入元で絞る（任意。予約URLの ?src= の値）</label>
+        <input id="cast-src" placeholder="例）gbp">
         <label>本文（{store}=店舗名 / {liff}=予約リンク が使えます）</label>
         <textarea id="cast-body" placeholder="例）{store}です。お得な回数券キャンペーンのお知らせです。ご予約はこちら {liff}"></textarea>
         <div class="row" style="margin-top:8px">
           <button class="ghost sm" id="cast-count">対象人数を確認</button>
           <span class="sub" id="cast-target"></span>
         </div>
+        <label>送信日時（任意。空欄なら今すぐ送信）</label>
+        <input id="cast-at" type="datetime-local">
         <div class="msg" id="cast-msg"></div>
         <button id="cast-send" style="width:100%" disabled>この内容で送信</button>
-        <p class="sub" style="margin-top:8px">配信はLINEの通数を消費します。まず対象人数を確認してから送ってください。</p>
+        <p class="sub" style="margin-top:8px">配信はLINEの通数を消費します。まず対象人数を確認してから送ってください。日時を指定した配信は、その時点の条件で相手を決め直して送ります（5分ごとに確認するため最大5分遅れます）。</p>
+      </div>
+      <div class="card">
+        <h2>配信の予約と履歴</h2>
+        <div id="cast-list"><div class="sub">読み込み中…</div></div>
       </div>
     </div>
 
@@ -182,6 +193,12 @@
         <div class="sub" style="margin-bottom:6px">「指名なし」の予約は、各店舗の並び順で上から空いている人に自動で割り当てます。並びは ▲▼ で変更。</div>
         <div id="loc-list"></div>
         <button class="ghost sm" id="loc-add" style="margin-top:6px">＋ 店舗を追加</button>
+      </div>
+      <div class="card" id="course-card">
+        <h2>コース（予約メニュー）</h2>
+        <div class="sub" style="margin-bottom:6px">お客様の予約画面に出るメニューです。所要時間で空き枠を計算します。「初回のみ」は予約が1件もない人だけに表示します（体験など）。</div>
+        <div id="course-list"></div>
+        <button class="ghost sm" id="course-add" style="margin-top:6px">＋ コースを追加</button>
       </div>
       <div class="card" id="shift-card">
         <h2>勤務予定</h2>
@@ -259,11 +276,13 @@ function renderCusts(){
     const linked = c.linked ? "" : `<span class="tag warn">LINE未連携</span>`;
     const tk = c.ticket_remaining>0 ? `<span class="tag">券${c.ticket_remaining}</span>` : "";
     const done = c.review_requested_at ? `<span class="tag ok">案内済 ${fmtDate(c.review_requested_at)}</span>` : "";
-    const btn = `<button class="sm ghost msgto" data-id="${c.id}">メッセージ</button>` + (c.linked ? ` <button class="sm review" data-id="${c.id}" data-name="${c.name}">口コミ案内</button>` : "");
+    const btn = `<button class="sm ghost tagto" data-id="${c.id}">タグ</button> <button class="sm ghost msgto" data-id="${c.id}">メッセージ</button>` + (c.linked ? ` <button class="sm review" data-id="${c.id}" data-name="${c.name}">口コミ案内</button>` : "");
     const pref=c.notify_pref||"both"; const via = `<select class="pref" data-id="${c.id}" style="width:auto;padding:4px 6px;font-size:12px;margin-top:4px"><option value="line" ${pref==="line"?"selected":""} ${c.linked?"":"disabled"}>控え: LINE</option><option value="mail" ${pref==="mail"?"selected":""} ${c.email?"":"disabled"}>控え: メール</option><option value="both" ${pref==="both"?"selected":""}>控え: 両方</option></select>`;
-    return `<div class="cust"><div><div>${c.name}</div><div class="sub">最終 ${daysAgo(c.last_visit)}・${c.upcoming?"予約あり":"予約なし"} ${linked}${tk}${done}</div>${via}</div><div>${btn}</div></div>`;
+    return `<div class="cust"><div><div>${c.name}</div><div class="sub">最終 ${daysAgo(c.last_visit)}・${c.upcoming?"予約あり":"予約なし"} ${linked}${tk}${done}${c.source?`<span class="tag">流入 ${c.source}</span>`:""}${(c.tags||[]).map(t=>`<span class="tag">#${esc(t)}</span>`).join("")}</div>${via}</div><div>${btn}</div></div>`;
   }).join("") || `<div class="sub">該当する顧客がいません。</div>`;
   document.querySelectorAll(".msgto").forEach(b=> b.onclick=()=>{ view="msg"; render(); openRoom(b.dataset.id); });
+  document.querySelectorAll(".tagto").forEach(b=> b.onclick=async()=>{ const c=CUSTS.find(x=>x.id===b.dataset.id); const v=prompt(`${c.name} さんのタグ（カンマ区切り・1つ20字まで）`, (c.tags||[]).join(", ")); if(v===null) return;
+    try{ const j=await ops("tag_set",{ customer_id:c.id, tags:v }); c.tags=j.tags; renderCusts(); }catch(e){ alert(e.message); } });
   document.querySelectorAll(".pref").forEach(sel=> sel.onchange=async()=>{ sel.disabled=true; try{ await ops("customer_update",{ customer_id:sel.dataset.id, notify_pref:sel.value }); const c=CUSTS.find(x=>x.id===sel.dataset.id); if(c) c.notify_pref=sel.value; }catch(e){ alert(e.message); renderCusts(); } sel.disabled=false; });
   document.querySelectorAll(".review").forEach(b=> b.onclick = async ()=>{
     if(!confirm(`${b.dataset.name} さんに口コミのお願いを送ります。よろしいですか？`)) return;
@@ -390,7 +409,7 @@ function openForm(preset){
   preset = preset && preset.date ? preset : null;
   BF={cid:null,cust:null}; $("#bf-q").value=""; $("#bf-cands").innerHTML=""; $("#bf-cid").value=""; $("#bf-email").value=""; $("#bf-line").textContent=""; $("#bf-newc").classList.add("hide"); $("#bf-nname").value=""; $("#bf-nphone").value="";
   $("#bf-date").value=(preset&&preset.date)||SCH.sel||ymd(new Date()); $("#bf-time").innerHTML=timeOptions(); if(preset&&preset.time) $("#bf-time").value=preset.time; $("#bf-dur").value=String(SCH.data?.store?.default_duration||60);
-  $("#bf-menu").value=""; $("#bf-note").value=""; $("#bf-msg").textContent=""; $("#bf-msg").className="msg";
+  $("#bf-menu").value=""; $("#bf-note").value=""; fillCourseSel(); $("#bf-msg").textContent=""; $("#bf-msg").className="msg";
   const locs=(SCH.data?.locations||[]).filter(l=>l.active); $("#bf-locwrap").classList.toggle("hide", locs.length<=1);
   $("#bf-loc").innerHTML = locs.map(l=>`<option value="${l.id}" ${(SCH.loc!=="all"?SCH.loc:(SCH.data.me.locations||[])[0])===l.id?"selected":""}>${l.name}</option>`).join(""); $("#bf-nom").checked=false;
   const myLocs=SCH.data.me.locations||[];   // 自分が所属していない拠点では自分を既定にしない（選んでも受けられない）
@@ -421,7 +440,7 @@ $("#bf-save").onclick=async()=>{
   try{
     if(!cid){ const j=await ops("customer_create",{ name:$("#bf-nname").value.trim(), phone:$("#bf-nphone").value.trim(), email, notify_pref:getVia() }); cid=j.customer.id; }
     const start_at=new Date(`${date}T${time}:00+09:00`).toISOString();
-    const j=await ops("booking_create",{ customer_id:cid, start_at, duration_minutes:Number($("#bf-dur").value), menu:$("#bf-menu").value.trim(), note:$("#bf-note").value.trim(), email, staff_id:$("#bf-staff").value, location_id:$("#bf-loc").value||undefined, nominated:$("#bf-nom").checked, notify_via:getVia() });
+    const j=await ops("booking_create",{ customer_id:cid, start_at, duration_minutes:Number($("#bf-dur").value), menu:$("#bf-menu").value.trim(), course_id:$("#bf-course").value||undefined, note:$("#bf-note").value.trim(), email, staff_id:$("#bf-staff").value, location_id:$("#bf-loc").value||undefined, nominated:$("#bf-nom").checked, notify_via:getVia() });
     msg(`登録しました。控え：LINE ${j.notify.line?"送信":"なし（未連携）"} / メール ${j.notify.mail?"送信":"なし"}`,"ok");
     SCH.sel=date; SCH.base=weekStart(new Date(date+"T00:00:00")); await Promise.all([loadSched(), loadCusts()]);
     setTimeout(()=>$("#bf-form").classList.add("hide"),1500);
@@ -477,6 +496,33 @@ $("#msg-send").onclick=async()=>{
 };
 
 // 店舗（拠点）・優先順位・勤務予定
+// ===== コース =====
+let COURSES=[], COURSE_OWNER=false;
+async function loadCourses(){ try{ const j=await ops("courses"); COURSES=j.courses; COURSE_OWNER=j.role==="owner"; renderCourses(); fillCourseSel(); }catch(e){ $("#course-list").innerHTML=`<div class="msg err">${e.message}</div>`; } }
+const yen=n=>n==null?"":`・${Number(n).toLocaleString()}円`;
+function renderCourses(){
+  $("#course-add").classList.toggle("hide",!COURSE_OWNER);
+  $("#course-list").innerHTML = COURSES.map(c=>`<div class="row" style="justify-content:space-between;border-top:1px solid var(--line);padding:8px 0"><div><b>${esc(c.name)}</b> <span class="sub">${c.duration_minutes}分${yen(c.price)}</span>${c.audience==="new"?' <span class="tag">初回のみ</span>':""}${c.active?"":' <span class="tag warn">停止中</span>'}${c.description?`<div class="sub">${esc(c.description)}</div>`:""}</div>${COURSE_OWNER?`<button class="ghost sm course-edit" data-id="${c.id}">編集</button>`:""}</div>`).join("") || '<div class="sub">コースがありません。追加するまでお客様の画面ではコースを選ばず、既定の時間で予約されます。</div>';
+  document.querySelectorAll(".course-edit").forEach(b=>b.onclick=()=>editCourse(COURSES.find(c=>c.id===b.dataset.id)));
+}
+async function editCourse(c){
+  const name=prompt("コース名（例：体験パーソナル）", c?c.name:""); if(name===null) return; if(!name.trim()) return alert("コース名を入力してください");
+  const dur=prompt("所要時間（分）", c?c.duration_minutes:60); if(dur===null) return;
+  const price=prompt("料金（税込・円。空欄なら表示しない）", c&&c.price!=null?c.price:""); if(price===null) return;
+  const description=prompt("説明（お客様に表示・任意）", c?c.description||"":""); if(description===null) return;
+  const audience=confirm("初回の人だけに表示しますか？（OK＝初回のみ／キャンセル＝全員）")?"new":"all";
+  let active=true; if(c){ active=confirm("このコースで予約を受け付けますか？（キャンセル＝停止）"); }
+  try{ await ops("course_save",{ id:c?c.id:undefined, name:name.trim(), duration_minutes:Number(dur), price:String(price).trim(), description, audience, active, sort:c?c.sort:COURSES.length }); await loadCourses(); }catch(e){ alert(e.message); }
+}
+$("#course-add").onclick=()=>editCourse(null);
+function fillCourseSel(){
+  const sel=$("#bf-course"); if(!sel) return;
+  sel.innerHTML=`<option value="">指定しない（時間とメニューを手入力）</option>`+COURSES.filter(c=>c.active).map(c=>`<option value="${c.id}">${esc(c.name)}（${c.duration_minutes}分）</option>`).join("");
+  sel.onchange=()=>{ const c=COURSES.find(x=>x.id===sel.value); $("#bf-dur").disabled=!!c; $("#bf-menu").disabled=!!c; if(!c) return;
+    if(![...$("#bf-dur").options].some(o=>o.value===String(c.duration_minutes))) $("#bf-dur").insertAdjacentHTML("beforeend",`<option value="${c.duration_minutes}">${c.duration_minutes}分</option>`);
+    $("#bf-dur").value=String(c.duration_minutes); $("#bf-menu").value=c.name; };
+  $("#bf-dur").disabled=false; $("#bf-menu").disabled=false;
+}
 let LOC={ data:null, shifts:{}, cur:null };
 async function loadLoc(){ try{ LOC.data=await ops("locations"); LOC.shifts={}; for(const sh of LOC.data.shifts){ (LOC.shifts[sh.staff_id]=LOC.shifts[sh.staff_id]||[]).push(sh); } renderLoc(); renderShiftStaff(); }catch(e){ $("#loc-list").innerHTML=`<div class="msg err">${e.message}</div>`; } }
 function renderLoc(){
@@ -670,21 +716,33 @@ document.querySelectorAll("#sh-mode button").forEach(b=> b.onclick=()=>{
 });
 
 // 配信
+const castCond=()=>({ segment:$("#seg").value, tags:$("#cast-tags").value, source:$("#cast-src").value.trim() });
+["seg","cast-tags","cast-src"].forEach(id=> $("#"+id).addEventListener("input",()=>{ $("#cast-send").disabled=true; $("#cast-target").textContent=""; }));
 $("#cast-count").onclick = async ()=>{
   $("#cast-msg").textContent=""; $("#cast-msg").className="msg";
-  try{ const j=await ops("broadcast",{ segment:$("#seg").value, dry_run:true });
+  try{ const j=await ops("broadcast",{ ...castCond(), dry_run:true });
     $("#cast-target").textContent = `対象 ${j.target_count}名`;
     $("#cast-send").disabled = j.target_count===0;
   }catch(e){ $("#cast-msg").textContent=e.message; $("#cast-msg").className="msg err"; }
 };
 $("#cast-send").onclick = async ()=>{
   const body=$("#cast-body").value.trim(); if(!body){ $("#cast-msg").textContent="本文を入力してください"; $("#cast-msg").className="msg err"; return; }
-  if(!confirm(`${$("#cast-target").textContent} に送信します。よろしいですか？`)) return;
-  $("#cast-send").disabled=true; $("#cast-msg").textContent="送信中…"; $("#cast-msg").className="msg";
-  try{ const j=await ops("broadcast",{ segment:$("#seg").value, message:body });
-    $("#cast-msg").textContent=`${j.sent_count}名に送信しました`; $("#cast-msg").className="msg ok";
+  const at=$("#cast-at").value; const atISO = at ? new Date(at).toISOString() : "";
+  if(!confirm(at ? `${at.replace("T"," ")} に送信を予約します（いまの${$("#cast-target").textContent}）。よろしいですか？` : `${$("#cast-target").textContent} に送信します。よろしいですか？`)) return;
+  $("#cast-send").disabled=true; $("#cast-msg").textContent=at?"予約中…":"送信中…"; $("#cast-msg").className="msg";
+  try{ const j=await ops("broadcast",{ ...castCond(), message:body, scheduled_at:atISO||undefined });
+    $("#cast-msg").textContent= j.scheduled ? "送信を予約しました" : `${j.sent_count}名に送信しました`; $("#cast-msg").className="msg ok"; loadCasts();
   }catch(e){ $("#cast-msg").textContent=e.message; $("#cast-msg").className="msg err"; $("#cast-send").disabled=false; }
 };
+const fmtDT=iso=>iso?new Date(iso).toLocaleString("ja-JP",{ month:"numeric", day:"numeric", weekday:"short", hour:"2-digit", minute:"2-digit" }):"";
+const SEG_LABEL={ all:"全員", dormant_30:"30日来店なし", dormant_60:"60日来店なし", no_upcoming:"予約なし", ticket_low:"回数券残1以下", ticket_zero:"回数券残0" };
+const CAST_ST={ scheduled:"予約中", sending:"送信中", sent:"送信済", failed:"失敗", cancelled:"取消" };
+async function loadCasts(){
+  try{ const j=await ops("broadcast_list");
+    $("#cast-list").innerHTML = j.items.map(b=>`<div style="border-top:1px solid var(--line);padding:8px 0"><div class="row" style="justify-content:space-between"><div><span class="tag ${b.status==="scheduled"?"warn":b.status==="sent"?"ok":""}">${CAST_ST[b.status]||b.status}</span> <b>${b.status==="scheduled"?fmtDT(b.scheduled_at):fmtDT(b.sent_at||b.created_at)}</b> <span class="sub">${SEG_LABEL[b.segment]||b.segment}${(b.tags||[]).length?"・タグ "+esc(b.tags.join(",")):""}${b.source?"・流入 "+esc(b.source):""}・${b.status==="scheduled"?"目安"+b.target_count+"名":b.sent_count+"/"+b.target_count+"名"}</span></div>${b.status==="scheduled"&&ME.role==="owner"?`<button class="ghost sm cast-x" data-id="${b.id}">取消</button>`:""}</div><div class="sub" style="white-space:pre-wrap">${esc(String(b.body).slice(0,80))}</div></div>`).join("") || '<div class="sub">まだ配信はありません。</div>';
+    document.querySelectorAll(".cast-x").forEach(x=>x.onclick=async()=>{ if(!confirm("この予約配信を取り消します。よろしいですか？")) return; try{ await ops("broadcast_cancel",{ id:x.dataset.id }); loadCasts(); }catch(e){ alert(e.message); } });
+  }catch(e){ $("#cast-list").innerHTML=`<div class="msg err">${esc(e.message)}</div>`; }
+}
 
 // 設定
 $("#set-save").onclick = async ()=>{
@@ -697,6 +755,7 @@ $("#set-save").onclick = async ()=>{
 document.querySelectorAll("nav button").forEach(b=> b.onclick=()=>{ view=b.dataset.v; render(); });
 function render(){
   if(view==="msg"){ loadThreads(); if(MSG.cid) refreshRoom(); }
+  if(view==="cast") loadCasts();
   ["sched","cust","msg","cast","set"].forEach(v=> $("#view-"+v).classList.toggle("hide", v!==view));
   document.querySelectorAll("nav button").forEach(b=> b.classList.toggle("on", b.dataset.v===view));
 }
@@ -710,7 +769,7 @@ async function boot(){
     $("#hello").textContent = owner ? "管理（オーナー）" : "顧客対応";
     $("#login").classList.add("hide"); $("#app").classList.remove("hide"); $("#nav").classList.remove("hide");
     SCH.base=weekStart(new Date()); SCH.sel=ymd(new Date());
-    await Promise.all([loadSched(), loadCusts()]); loadThreads(); loadLoc(); setInterval(loadThreads, 30000);
+    await Promise.all([loadSched(), loadCusts()]); loadThreads(); loadLoc(); loadCourses(); setInterval(loadThreads, 30000);
   }catch(e){ $("#lmsg").textContent=e.message; }
 }
 sb.auth.getSession().then(({data:{session}})=>{ if(session) boot(); });
