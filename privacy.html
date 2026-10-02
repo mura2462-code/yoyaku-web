@@ -68,6 +68,10 @@
 /* 逆にメールアドレス・URL は長いので、どこで切ってでも溢れさせない */
 :where(a[href^="mailto:"],a[href^="http"],.jp-break,code,kbd,samp){ overflow-wrap: anywhere; }
 
+/* 括弧でくくった語（「…」（…）【…】など）は途中で折らない。短いものは .jp-nowrap、
+   長いもの（全角16字超）は「かたまりごと次の行へ送り、それでも入らなければ中で折る」 */
+.jp-keep{ display:inline-block; max-width:100%; text-decoration:inherit; text-indent:0; }
+
 /* 数字＋単位・記号の分断防止（例: 500 件, 8:00〜20:00） */
 .jp-unit{ white-space: nowrap; }
 
@@ -85,20 +89,20 @@
 </style>
 </head>
 <body>
-<header id="store-name">個人情報の<wbr>取扱いに<wbr>ついて</header>
+<header id="store-name">個人情報の<wbr>取扱いについて</header>
 <main>
 <div class="card">
-<h1>個人情報の<wbr>取扱いに<wbr>ついて</h1>
+<h1>個人情報の<wbr>取扱いについて</h1>
 <p class="sub">制定日：<span class="jp-nowrap">2026年</span>8月<wbr><span class="jp-nowrap">31日</span></p>
-<p><span id="store-inline">当店</span>（以下<wbr>「当店」）<wbr>は、<wbr>LINE上で<wbr>提供する<wbr>予約・<wbr>会員サービス<wbr>（以下<wbr>「本サービス」）<wbr>に<wbr>おいて、<wbr>お客様の<wbr>個人情報を<wbr>次の<wbr>とおり取り扱います。</p>
+<p><span id="store-inline">当店</span><span class="jp-nowrap">（以下「当店」）は</span>、<wbr>LINE上で<wbr>提供する<wbr>予約・<wbr>会員サービス<wbr><span class="jp-nowrap">（以下「本サービス」）に</span><wbr>おいて、<wbr>お客様の<wbr>個人情報を<wbr>次のとおり取り<wbr>扱います。</p>
 
 <h2>1. 取得する<wbr>情報</h2>
 <ul>
-<li>LINEの<wbr>識別子<wbr>（ユーザーID）<wbr>と<wbr>表示名</li>
+<li>LINEの<wbr>識別子<wbr><span class="jp-nowrap">（ユーザーID）と</span><wbr>表示名</li>
 <li>氏名、<wbr>電話番号、<wbr>メールアドレス</li>
 <li>予約と<wbr>来店の<wbr>履歴、<wbr>ご要望</li>
 <li>回数券・<wbr>会員プランの<wbr>購入と<wbr>利用の<wbr>状況</li>
-<li>体重の<wbr>記録、<wbr>トレーニングの<wbr>記録<wbr>（ご本人または<wbr>担当者が<wbr>入力した<wbr>もの）</li>
+<li>体重の<wbr>記録、<wbr>トレーニングの<wbr>記録<wbr><span class="jp-keep">（ご本人または担当者が入力したもの）</span></li>
 <li>本サービス上の<wbr>チャットの<wbr>内容</li>
 </ul>
 
@@ -109,7 +113,7 @@
 <li>トレーニング指導と<wbr>記録の<wbr>共有</li>
 <li>回数券・<wbr>会員プランの<wbr>管理と<wbr>決済</li>
 <li>お問い合わせへの<wbr>対応</li>
-<li>ご感想・<wbr>口コミの<wbr>お願いなどの<wbr>ご案内<wbr>（お申し出に<wbr>より<wbr>停止できます）</li>
+<li>ご感想・<wbr>口コミの<wbr>お願いなどの<wbr>ご案内<wbr><span class="jp-nowrap">（お申し出により停止できます）</span></li>
 <li>本サービスの<wbr>品質向上</li>
 </ul>
 
@@ -117,23 +121,23 @@
 <p>法令に<wbr>基づく<wbr>場合を<wbr>除き、<wbr>ご本人の<wbr>同意なく<wbr>第三者に<wbr>提供しません。</p>
 
 <h2>4. 業務の<wbr>委託と<wbr>利用する<wbr>外部サービス</h2>
-<p>本サービスの<wbr>提供に<wbr>あたり、<wbr>次の<wbr>事業者に<wbr>情報の<wbr>処理を<wbr>委託しています。<wbr>いずれも<wbr>上記の<wbr>利用目的の<wbr>範囲に<wbr>限ります。</p>
+<p>本サービスの<wbr>提供に<wbr>あたり、<wbr>次の<wbr>事業者に<wbr>情報の<wbr>処理を<wbr>委託しています。<br class="jp-sent">いずれも<wbr>上記の<wbr>利用目的の<wbr>範囲に<wbr>限ります。</p>
 <ul>
-<li>LINEヤフー株式会社<wbr>（メッセージの<wbr>送受信、<wbr>ログイン）</li>
-<li>Supabase<wbr>（データの<wbr>保管。<wbr>サーバーは<wbr>日本国内）</li>
-<li>Google<wbr>（メールの<wbr>送信）</li>
-<li>Stripe<wbr>（オンライン決済を<wbr>利用する<wbr>場合。<wbr>カード情報は<wbr>当店の<wbr>サーバーには<wbr>保存されません）</li>
-<li>本サービスの<wbr>構築・<wbr>保守を<wbr>行う<wbr>事業者<wbr>（保守作業に<wbr>必要な<wbr>範囲に<wbr>限ります）</li>
+<li>LINEヤフー株式会社<wbr><span class="jp-nowrap">（メッセージの送受信、ログイン）</span></li>
+<li>Supabase<wbr>（データの<wbr>保管。<br class="jp-sent">サーバーは<wbr>日本国内）</li>
+<li>Google<wbr><span class="jp-nowrap">（メールの送信）</span></li>
+<li>Stripe<wbr>（オンライン決済を<wbr>利用する<wbr>場合。<br class="jp-sent">カード情報は<wbr>当店の<wbr>サーバーには<wbr>保存されません）</li>
+<li>本サービスの<wbr>構築・<wbr>保守を<wbr>行う<wbr>事業者<wbr><span class="jp-keep">（保守作業に必要な範囲に限ります）</span></li>
 </ul>
 
 <h2>5. 保存期間</h2>
 <p>ご利用の<wbr>期間中と、<wbr>その<wbr>後法令で<wbr>定められた<wbr>期間、<wbr>保存します。</p>
 
 <h2>6. 安全管理</h2>
-<p>通信と<wbr>保存データを<wbr>暗号化し、<wbr>店舗ごとに<wbr>アクセスを<wbr>制限しています。<wbr>お客様ご自身の<wbr>情報は、<wbr>ご本人と<wbr>当店の<wbr>担当者のみが<wbr>閲覧できます。</p>
+<p>通信と<wbr>保存データを<wbr>暗号化し、<wbr>店舗ごとに<wbr>アクセスを<wbr>制限しています。<br class="jp-sent">お客様ご自身の<wbr>情報は、<wbr>ご本人と<wbr>当店の<wbr>担当者のみが<wbr>閲覧できます。</p>
 
 <h2>7. 開示・<wbr>訂正・<wbr>削除の<wbr>ご請求</h2>
-<p>本サービスの<wbr>チャット、<wbr>または<wbr>店頭で<wbr>お申し出<wbr>ください。<wbr>ご本人である<wbr>ことを<wbr>確認の<wbr>うえ、<wbr>合理的な<wbr>範囲で<wbr>速やかに<wbr>対応します。<wbr>予約の<wbr>控えの<wbr>受け取り方<wbr>（LINE・<wbr>メール）<wbr>は<wbr>ホーム画面から<wbr>変更できます。</p>
+<p>本サービスの<wbr>チャット、<wbr>または<wbr>店頭で<wbr>お申し出<wbr>ください。<br class="jp-sent">ご本人であることを<wbr>確認のうえ、<wbr>合理的な<wbr>範囲で<wbr>速やかに<wbr>対応します。<br class="jp-sent">予約の<wbr>控えの<wbr>受け取り方<wbr><span class="jp-nowrap">（LINE・メール）は</span><wbr>ホーム画面から<wbr>変更できます。</p>
 
 <h2>8. 改定</h2>
 <p>内容を<wbr>変更する<wbr>場合は<wbr>本ページで<wbr>お知らせします。</p>
