@@ -101,7 +101,10 @@
         <label class="row" style="gap:6px"><input type="checkbox" id="be-nom" style="width:auto"> 顧客からの指名</label>
         <div class="msg" id="be-msg"></div>
         <div class="row"><button class="ghost" id="be-cancel" style="flex:1">閉じる</button><button id="be-save" style="flex:2">変更して通知</button></div>
-        <div class="sub">担当や店舗が変わると顧客へLINE／メールで通知が届きます。キャンセルはiPhoneアプリから行います。</div>
+        <div class="sub">担当や店舗が変わると顧客へLINE／メールで通知が届きます。</div>
+        <label style="margin-top:10px">状態を変える</label>
+        <div class="row" style="gap:6px;flex-wrap:wrap"><button class="sm be-st" data-st="done">来店済み</button><button class="ghost sm be-st" data-st="no_show">無断キャンセル</button><button class="ghost sm be-st" data-st="cancelled">キャンセル</button><button class="ghost sm be-st" data-st="late_cancelled">直前キャンセル</button></div>
+        <div class="sub">来店済み・無断キャンセルは回数券を1回消化します（直前キャンセルは設定で消化する店舗のみ）。キャンセルは顧客へ通知が届きます。</div>
       </div>
       <div class="card hide" id="bf-form">
         <h2>予約を追加</h2>
@@ -164,6 +167,9 @@
           <option value="no_upcoming">今後の予約が入っていない</option>
           <option value="ticket_low">回数券の残りが1回以下</option>
           <option value="ticket_zero">回数券の残りが0</option>
+          <option value="member">会員（月会員か、期限内の回数券がある）</option>
+          <option value="non_member">会員ではない</option>
+          <option value="no_visit">まだ来店していない</option>
         </select>
         <label>タグで絞る（任意・カンマ区切り。どれか1つが付いている人）</label>
         <input id="cast-tags" placeholder="例）体験済み, 減量">
@@ -184,6 +190,35 @@
       <div class="card">
         <h2>配信の予約と履歴</h2>
         <div id="cast-list"><div class="sub">読み込み中…</div></div>
+      </div>
+      <div class="card" id="rm-card">
+        <h2>LINEのメニュー（出し分け）</h2>
+        <div class="sub">トーク画面の下に出るメニューを、会員・未来店・タグなどで人ごとに変えられます。上の行ほど優先し、どれにも当てはまらない人には「既定」のメニューが出ます。</div>
+        <div class="msg" id="rm-msg"></div>
+        <div id="rm-list"><div class="sub">読み込み中…</div></div>
+        <button class="ghost sm" id="rm-add" style="margin-top:8px">＋ メニューを作る</button>
+        <div id="rm-edit" class="hide" style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px">
+          <label>名前（管理用・お客様には出ません）</label><input id="rm-name" maxlength="40" placeholder="例）会員向け">
+          <div class="row" style="gap:8px"><div style="flex:2"><label>区割り</label><select id="rm-layout">
+            <option value="g6">大・6つ（3×2）</option><option value="g4">大・4つ（2×2）</option><option value="g3">大・3つ（上1＋下2）</option><option value="g2">大・2つ（左右）</option><option value="g1">大・1つ</option>
+            <option value="c3">小・3つ</option><option value="c2">小・2つ</option><option value="c1">小・1つ</option></select></div>
+            <div style="flex:1"><label>色</label><input id="rm-color" type="color" value="#2563eb" style="height:46px;padding:4px"></div></div>
+          <label>画像</label>
+          <div class="seg" id="rm-imgmode"><button type="button" data-m="auto" class="on">文字から自動で作る</button><button type="button" data-m="upload">画像を使う</button></div>
+          <input type="file" id="rm-file" accept="image/png,image/jpeg" class="hide" style="margin-top:6px">
+          <div id="rm-btns"></div>
+          <label>見た目（実際の比率）</label>
+          <canvas id="rm-canvas" style="width:100%;border:1px solid var(--line);border-radius:8px;display:block"></canvas>
+          <label class="row" style="gap:6px;margin-top:8px"><input type="checkbox" id="rm-default" style="width:auto"> 既定のメニューにする（条件に当てはまらない全員に出る）</label>
+          <div id="rm-condbox">
+            <label>出す相手</label><select id="rm-seg"></select>
+            <label>タグ（任意・カンマ区切り。どれか1つが付いている人）</label><input id="rm-tags" placeholder="例）体験済み">
+            <label>流入元（任意。予約URLの ?src= の値）</label><input id="rm-src" placeholder="例）gbp">
+            <label>優先順位（小さいほど先に判定）</label><input id="rm-pri" type="number" min="0" max="999" value="100" style="width:100px">
+          </div>
+          <div class="msg" id="rm-emsg"></div>
+          <div class="row" style="gap:8px"><button class="ghost" id="rm-close" style="flex:1">閉じる</button><button id="rm-save" style="flex:2">保存してLINEに反映</button></div>
+        </div>
       </div>
     </div>
 
@@ -206,6 +241,13 @@
         <input id="review-url" placeholder="https://g.page/r/... または https://search.google.com/local/writereview?placeid=...">
         <label>口コミ案内の文面（{store} / {review_url} が使えます）</label>
         <textarea id="review-tpl"></textarea>
+        <label class="row" style="gap:6px;margin-top:10px"><input type="checkbox" id="review-auto" style="width:auto"> 来店後アンケートを自動で送る</label>
+        <div class="row" style="gap:6px"><input id="review-after" type="number" min="1" max="50" style="width:80px"><span class="sub">回目の来店が「来店済み」になった時に1回だけ</span></div>
+        <div class="sub">お客様には「今日の感想（★1〜5・ひとこと）」が届き、答えた全員に Google 口コミのボタンが出ます。評価で振り分けて口コミに誘導することは Google のポリシーで禁止されているため、全員に同じ案内を出します。回答は「分析」で見られます。</div>
+        <label style="margin-top:10px">お客様の画面に出す機能</label>
+        <label class="row" style="gap:6px"><input type="checkbox" id="ft-weight" style="width:auto"> 体重の記録</label>
+        <label class="row" style="gap:6px"><input type="checkbox" id="ft-train" style="width:auto"> トレーニング記録</label>
+        <div class="sub">ジム以外の業種（整体・教室など）では外せます。</div>
         <div class="msg" id="set-msg"></div>
         <button id="set-save" style="width:100%">保存</button>
       </div>
@@ -413,6 +455,15 @@ function openEdit(id){
   $("#bk-editcard").classList.remove("hide"); $("#bk-editcard").scrollIntoView({behavior:"smooth",block:"nearest"});
 }
 $("#be-cancel").onclick=()=>$("#bk-editcard").classList.add("hide");
+const ST_LABEL={ done:"来店済み", no_show:"無断キャンセル", cancelled:"キャンセル", late_cancelled:"直前キャンセル" };
+document.querySelectorAll(".be-st").forEach(b=>b.onclick=async()=>{
+  const st=b.dataset.st; if(st!=="done" && !confirm(`この予約を「${ST_LABEL[st]}」にします。よろしいですか`)) return;
+  const msg=(t,c)=>{ $("#be-msg").textContent=t; $("#be-msg").className="msg "+(c||""); };
+  document.querySelectorAll(".be-st").forEach(x=>x.disabled=true); msg("変更中…");
+  try{ const j=await ops("booking_status",{ booking_id:BE.id, status:st }); msg(`「${ST_LABEL[st]}」にしました${j.warning?"。"+j.warning:""}`, j.warning?"err":"ok"); await loadSched(); if(!j.warning) setTimeout(()=>$("#bk-editcard").classList.add("hide"),1200); }
+  catch(e){ msg(e.message,"err"); }
+  document.querySelectorAll(".be-st").forEach(x=>x.disabled=false);
+});
 $("#be-save").onclick=async()=>{
   const msg=(t,c)=>{ $("#be-msg").textContent=t; $("#be-msg").className="msg "+(c||""); };
   $("#be-save").disabled=true; msg("変更中…");
@@ -757,7 +808,7 @@ $("#cast-send").onclick = async ()=>{
   }catch(e){ $("#cast-msg").textContent=e.message; $("#cast-msg").className="msg err"; $("#cast-send").disabled=false; }
 };
 const fmtDT=iso=>iso?new Date(iso).toLocaleString("ja-JP",{ month:"numeric", day:"numeric", weekday:"short", hour:"2-digit", minute:"2-digit" }):"";
-const SEG_LABEL={ all:"全員", dormant_30:"30日来店なし", dormant_60:"60日来店なし", no_upcoming:"予約なし", ticket_low:"回数券残1以下", ticket_zero:"回数券残0" };
+const SEG_LABEL={ all:"全員", dormant_30:"30日来店なし", dormant_60:"60日来店なし", no_upcoming:"予約なし", ticket_low:"回数券残1以下", ticket_zero:"回数券残0", member:"会員", non_member:"会員以外", no_visit:"未来店" };
 const CAST_ST={ scheduled:"予約中", sending:"送信中", sent:"送信済", failed:"失敗", cancelled:"取消" };
 async function loadCasts(){
   try{ const j=await ops("broadcast_list");
@@ -769,7 +820,7 @@ async function loadCasts(){
 // 設定
 $("#set-save").onclick = async ()=>{
   $("#set-msg").textContent="保存中…"; $("#set-msg").className="msg";
-  try{ await ops("settings_set",{ settings:{ google_review_url:$("#review-url").value.trim(), review_msg_template:$("#review-tpl").value } });
+  try{ await ops("settings_set",{ settings:{ google_review_url:$("#review-url").value.trim(), review_msg_template:$("#review-tpl").value, review_auto:$("#review-auto").checked, review_after_visits:Number($("#review-after").value||1), features:{ weight:$("#ft-weight").checked, train:$("#ft-train").checked, tickets:true } } });
     $("#set-msg").textContent="保存しました"; $("#set-msg").className="msg ok";
   }catch(e){ $("#set-msg").textContent=e.message; $("#set-msg").className="msg err"; }
 };
@@ -777,11 +828,79 @@ $("#set-save").onclick = async ()=>{
 document.querySelectorAll("nav button").forEach(b=> b.onclick=()=>{ view=b.dataset.v; render(); });
 function render(){
   if(view==="msg"){ loadThreads(); if(MSG.cid) refreshRoom(); }
-  if(view==="cast") loadCasts();
+  if(view==="cast"){ loadCasts(); loadRm(); }
   if(view==="ana") loadAna();
   ["sched","cust","msg","cast","ana","set"].forEach(v=> $("#view-"+v).classList.toggle("hide", v!==view));
   document.querySelectorAll("nav button").forEach(b=> b.classList.toggle("on", b.dataset.v===view));
 }
+
+// ---- LINEのメニュー（出し分け・owner） ----
+const RM_LAYOUT={ g6:{w:2500,h:1686,c:[[0,0,1/3,1/2],[1/3,0,1/3,1/2],[2/3,0,1/3,1/2],[0,1/2,1/3,1/2],[1/3,1/2,1/3,1/2],[2/3,1/2,1/3,1/2]]},
+  g4:{w:2500,h:1686,c:[[0,0,.5,.5],[.5,0,.5,.5],[0,.5,.5,.5],[.5,.5,.5,.5]]}, g3:{w:2500,h:1686,c:[[0,0,1,.5],[0,.5,.5,.5],[.5,.5,.5,.5]]},
+  g2:{w:2500,h:1686,c:[[0,0,.5,1],[.5,0,.5,1]]}, g1:{w:2500,h:1686,c:[[0,0,1,1]]},
+  c3:{w:2500,h:843,c:[[0,0,1/3,1],[1/3,0,1/3,1],[2/3,0,1/3,1]]}, c2:{w:2500,h:843,c:[[0,0,.5,1],[.5,0,.5,1]]}, c1:{w:2500,h:843,c:[[0,0,1,1]]} };
+const RM_VIEWS={ home:"ホーム", book:"予約する", weight:"体重", train:"トレ記録", chat:"チャット" };
+const RM_DEF=[["予約する","view","book"],["チャット","view","chat"],["ホーム","view","home"],["トレ記録","view","train"],["体重","view","weight"],["予約する","view","book"]];
+const RM={ items:[], counts:{}, ready:false, edit:null, mode:"auto", img:null };
+async function loadRm(){ try{ const j=await ops("richmenu_list"); RM.items=j.items; RM.counts=j.counts; RM.ready=j.line_ready; renderRm(); }catch(e){ $("#rm-list").innerHTML=`<div class="msg err">${esc(e.message)}</div>`; } }
+function renderRm(){
+  const c=k=>{ const n=RM.counts[k]; return n?`${n.all}人（LINE連携 ${n.linked}人）`:"0人"; };
+  $("#rm-msg").textContent = RM.ready?"":"この店舗は LINE が未接続です。メニューは保存と見た目の確認だけできます（LINE への反映は接続後）。";
+  $("#rm-msg").className="msg"+(RM.ready?"":" err");
+  $("#rm-list").innerHTML = RM.items.map(m=>`<div class="row" style="justify-content:space-between;border-top:1px solid var(--line);padding:8px 0"><div><b>${esc(m.name)}</b> ${m.is_default?'<span class="tag ok">既定</span>':`<span class="tag">${esc(SEG_LABEL[m.cond?.segment]||m.cond?.segment)}${(m.cond?.tags||[]).length?"・#"+esc(m.cond.tags.join(",#")):""}${m.cond?.source?"・流入 "+esc(m.cond.source):""}</span> <span class="sub">優先 ${m.priority}</span>`}${m.line_richmenu_id?"":' <span class="tag warn">LINE未反映</span>'}<div class="sub">${m.is_default?"どれにも当てはまらない人："+c("default"):"今この条件で出る人："+c(m.id)}</div></div><div class="row" style="gap:6px"><button class="ghost sm rm-e" data-id="${m.id}">編集</button><button class="ghost sm rm-d" data-id="${m.id}">削除</button></div></div>`).join("") || '<div class="sub">まだメニューがありません。</div>';
+  document.querySelectorAll(".rm-e").forEach(b=>b.onclick=()=>openRm(RM.items.find(x=>x.id===b.dataset.id)));
+  document.querySelectorAll(".rm-d").forEach(b=>b.onclick=async()=>{ if(!confirm("このメニューを削除します。よろしいですか")) return; try{ await ops("richmenu_delete",{id:b.dataset.id}); await loadRm(); }catch(e){ alert(e.message); } });
+}
+function rmButtons(){ return [...document.querySelectorAll("#rm-btns .rmb")].map(r=>({ label:r.querySelector(".l").value.trim(), kind:r.querySelector(".k").value, value:(r.querySelector(".k").value==="view"?r.querySelector(".vv").value:r.querySelector(".vt").value).trim() })); }
+function rmRenderBtns(list){
+  const L=RM_LAYOUT[$("#rm-layout").value]; const cur=list||rmButtons();
+  const rows=L.c.map((_,i)=>cur[i]||{label:RM_DEF[i%RM_DEF.length][0],kind:RM_DEF[i%RM_DEF.length][1],value:RM_DEF[i%RM_DEF.length][2]});
+  $("#rm-btns").innerHTML=rows.map((b,i)=>`<div class="rmb" style="border-top:1px solid var(--line);padding:6px 0"><label>ボタン${i+1}</label><div class="row" style="gap:6px"><input class="l" maxlength="20" value="${esc(b.label)}" style="flex:2"><select class="k" style="flex:1"><option value="view" ${b.kind==="view"?"selected":""}>画面を開く</option><option value="url" ${b.kind==="url"?"selected":""}>URL</option><option value="text" ${b.kind==="text"?"selected":""}>文字を送る</option></select></div>
+    <select class="vv ${b.kind==="view"?"":"hide"}" style="margin-top:4px">${Object.entries(RM_VIEWS).map(([k,v])=>`<option value="${k}" ${b.kind==="view"&&b.value===k?"selected":""}>${v}</option>`).join("")}</select>
+    <input class="vt ${b.kind==="view"?"hide":""}" style="margin-top:4px" maxlength="1000" placeholder="${b.kind==="url"?"https://...":"例）料金を教えて"}" value="${b.kind==="view"?"":esc(b.value)}"></div>`).join("");
+  document.querySelectorAll("#rm-btns .rmb").forEach(r=>{ r.querySelector(".k").onchange=()=>{ const v=r.querySelector(".k").value==="view"; r.querySelector(".vv").classList.toggle("hide",!v); r.querySelector(".vt").classList.toggle("hide",v); r.querySelector(".vt").placeholder=r.querySelector(".k").value==="url"?"https://...":"例）料金を教えて"; };
+    r.querySelector(".l").oninput=rmDraw; });
+  rmDraw();
+}
+function rmDraw(){
+  const L=RM_LAYOUT[$("#rm-layout").value], cv=$("#rm-canvas"); cv.width=L.w; cv.height=L.h; const g=cv.getContext("2d"); const col=$("#rm-color").value;
+  if(RM.mode==="upload" && RM.img){ const im=RM.img, r=Math.max(L.w/im.width, L.h/im.height); g.drawImage(im,(L.w-im.width*r)/2,(L.h-im.height*r)/2,im.width*r,im.height*r); }
+  else { g.fillStyle=col; g.fillRect(0,0,L.w,L.h); }
+  const btns=rmButtons();
+  L.c.forEach(([x,y,w,h],i)=>{ const X=x*L.w,Y=y*L.h,W=w*L.w,H=h*L.h;
+    g.strokeStyle="rgba(255,255,255,.85)"; g.lineWidth=8; g.strokeRect(X+4,Y+4,W-8,H-8);
+    if(RM.mode==="auto"){ const t=btns[i]?.label||""; let fs=Math.min(H*0.2, W*0.8/Math.max(2,t.length)); g.font=`700 ${fs}px -apple-system,"Hiragino Kaku Gothic ProN",sans-serif`; g.fillStyle="#fff"; g.textAlign="center"; g.textBaseline="middle"; g.fillText(t,X+W/2,Y+H/2); } });
+}
+function openRm(m){
+  RM.edit=m||null; RM.mode=m?.image_mode||"auto"; RM.img=null;
+  $("#rm-name").value=m?.name||""; $("#rm-layout").value=m?.layout||"g6"; $("#rm-color").value=m?.color||"#2563eb";
+  $("#rm-default").checked=!!m?.is_default; $("#rm-pri").value=m?.priority??100;
+  $("#rm-seg").innerHTML=$("#seg").innerHTML.replace("LINE連携している全員","全員"); $("#rm-seg").value=m?.cond?.segment||"member";
+  $("#rm-tags").value=(m?.cond?.tags||[]).join(", "); $("#rm-src").value=m?.cond?.source||"";
+  document.querySelectorAll("#rm-imgmode button").forEach(x=>x.classList.toggle("on",x.dataset.m===RM.mode)); $("#rm-file").classList.toggle("hide",RM.mode!=="upload"); $("#rm-file").value="";
+  $("#rm-condbox").classList.toggle("hide",$("#rm-default").checked); $("#rm-emsg").textContent="";
+  $("#rm-save").textContent = RM.ready?"保存してLINEに反映":"保存（LINE未接続）";
+  $("#rm-edit").classList.remove("hide"); rmRenderBtns(m?.buttons||null);
+  if(RM.mode==="upload") $("#rm-emsg").textContent="画像を使う場合は、もう一度画像を選んでください";
+  $("#rm-edit").scrollIntoView({behavior:"smooth",block:"nearest"});
+}
+$("#rm-add").onclick=()=>openRm(null);
+$("#rm-close").onclick=()=>$("#rm-edit").classList.add("hide");
+$("#rm-layout").onchange=()=>rmRenderBtns(); $("#rm-color").oninput=rmDraw;
+$("#rm-default").onchange=()=>$("#rm-condbox").classList.toggle("hide",$("#rm-default").checked);
+document.querySelectorAll("#rm-imgmode button").forEach(b=>b.onclick=()=>{ RM.mode=b.dataset.m; document.querySelectorAll("#rm-imgmode button").forEach(x=>x.classList.toggle("on",x===b)); $("#rm-file").classList.toggle("hide",RM.mode!=="upload"); rmDraw(); });
+$("#rm-file").onchange=()=>{ const f=$("#rm-file").files[0]; if(!f) return; const im=new Image(); im.onload=()=>{ RM.img=im; rmDraw(); }; im.src=URL.createObjectURL(f); };
+$("#rm-save").onclick=async()=>{
+  const emsg=(t,c)=>{ $("#rm-emsg").textContent=t; $("#rm-emsg").className="msg "+(c||""); };
+  if(RM.mode==="upload" && !RM.img) return emsg("画像を選んでください","err");
+  rmDraw(); const image=$("#rm-canvas").toDataURL(RM.mode==="upload"?"image/jpeg":"image/png", 0.85);
+  $("#rm-save").disabled=true; emsg("保存中…");
+  try{ const j=await ops("richmenu_save",{ id:RM.edit?.id, name:$("#rm-name").value, layout:$("#rm-layout").value, color:$("#rm-color").value, image_mode:RM.mode, buttons:rmButtons(),
+      is_default:$("#rm-default").checked, priority:Number($("#rm-pri").value||100), cond:{ segment:$("#rm-seg").value, tags:$("#rm-tags").value.split(/[,、､\s]+/).filter(Boolean), source:$("#rm-src").value.trim() }, image });
+    emsg(j.note||"保存しました","ok"); await loadRm(); setTimeout(()=>$("#rm-edit").classList.add("hide"),1200);
+  }catch(e){ emsg(e.message,"err"); }
+  $("#rm-save").disabled=false;
+};
 
 // ---- 分析（owner） ----
 const ANA={ r:"m0", loc:"all", data:null };
@@ -806,7 +925,7 @@ async function loadAna(){
   const locs=(SCH.data?.locations||[]).filter(l=>l.active);
   if(locs.length>1){ $("#ana-loc").classList.remove("hide"); $("#ana-loc").innerHTML=`<option value="all">全店舗</option>`+locs.map(l=>`<option value="${l.id}" ${ANA.loc===l.id?"selected":""}>${esc(l.name)}</option>`).join(""); }
   $("#ana-msg").textContent="集計中…"; $("#ana-msg").className="msg";
-  try{ ANA.data=await ops("analytics",{ from, to, location:ANA.loc }); $("#ana-msg").textContent=""; renderAna(); }
+  try{ const [a,sv]=await Promise.all([ops("analytics",{ from, to, location:ANA.loc }), ops("surveys").catch(()=>({items:[]}))]); ANA.data=a; ANA.sv=sv.items; $("#ana-msg").textContent=""; renderAna(); }
   catch(e){ $("#ana-msg").textContent=e.message; $("#ana-msg").className="msg err"; }
 }
 function renderAna(){
@@ -834,7 +953,10 @@ function renderAna(){
   const nbs=D.new_by_source; const nbm=Math.max(1,...nbs.map(x=>x.n));
   const srcNew=`<div class="card"><h2>新規のお客様はどこから来たか</h2>${nbs.length?nbs.map(x=>`<div class="hb"><div>${esc(x.label)}</div><div><div class="t" style="width:${x.n/nbm*100}%"></div></div><div class="v">${x.n}人</div></div>`).join(""):'<div class="sub">この期間の新規はいません。</div>'}<div class="note">予約URLの末尾に ?src=gbp（Googleマップ）・?src=ig（Instagram）・?src=flyer（チラシ）のように付けて配ると、ここに分かれて出ます。付けていない入口は「記録なし」になります。</div></div>`;
   const tr=D.trial; const trialCard=`<div class="card"><h2>体験のあと続いたか</h2>${tr.customers?`<div class="kpis" style="grid-template-columns:repeat(2,1fr)">${kpi(tr.customers,"初回のみコースを受けた人","この期間に来店済み")}${kpi(pct(tr.followed,tr.customers),"そのあと次の予約がある人",`${tr.followed}人`)}</div>`:'<div class="sub">この期間に「初回のみ」のコースで来店した人はいません。</div>'}<div class="note">設定→コースで「初回のみ」にしたコースを体験として数えます。次の予約＝体験以外のコースで、予約中か来店済みのもの（回数券の購入は含みません）。</div></div>`;
-  $("#ana-body").innerHTML = `<div class="card">${kpis}</div>`+trend+heatCard+srcNew+hbars("コース別",D.by_course,cv)+hbars("予約の入口別（予約ごと）",D.by_source,cv)+trialCard+hbars("担当別",D.by_staff,r=>`${r.live}件・${Math.round(r.minutes/60*10)/10}h`);
+  const S=D.survey||{count:0,dist:[0,0,0,0,0]}; const sm=Math.max(1,...S.dist);
+  const svCard=`<div class="card"><h2>来店後アンケート</h2>${S.count?`<div class="kpis" style="grid-template-columns:repeat(2,1fr)">${kpi(S.avg,"平均（★1〜5）",`${S.count}件の回答`)}${kpi(pct(S.dist[3]+S.dist[4],S.count),"★4以上の割合","")}</div>${[5,4,3,2,1].map(r=>`<div class="hb"><div>★${r}</div><div><div class="t" style="width:${S.dist[r-1]/sm*100}%"></div></div><div class="v">${S.dist[r-1]}件</div></div>`).join("")}`:'<div class="sub">この期間の回答はありません。設定→「来店後アンケートを自動で送る」をオンにすると届き始めます。</div>'}
+    ${(ANA.sv||[]).filter(x=>x.comment).slice(0,10).map(x=>`<div style="border-top:1px solid var(--line);padding:7px 0;font-size:13px"><span class="tag">★${x.rating}</span> <span class="sub">${fmtDate(x.created_at)}・${esc(x.customer_name)}</span><div>${esc(x.comment)}</div></div>`).join("")}${(ANA.sv||[]).some(x=>x.comment)?'<div class="note">ひとことは期間に関係なく新しい順に10件です。</div>':""}</div>`;
+  $("#ana-body").innerHTML = `<div class="card">${kpis}</div>`+trend+heatCard+srcNew+hbars("コース別",D.by_course,cv)+hbars("予約の入口別（予約ごと）",D.by_source,cv)+trialCard+hbars("担当別",D.by_staff,r=>`${r.live}件・${Math.round(r.minutes/60*10)/10}h`)+svCard;
 }
 
 async function boot(){
@@ -843,6 +965,8 @@ async function boot(){
     $("#nav-cast").classList.toggle("hide", !owner); $("#nav-ana").classList.toggle("hide", !owner); document.querySelector("#view-set .card").classList.toggle("hide", !owner);
     $("#review-url").value = j.settings.google_review_url||"";
     $("#review-tpl").value = j.settings.review_msg_template||"";
+    $("#ft-weight").checked = j.settings.features?.weight !== false; $("#ft-train").checked = j.settings.features?.train !== false;
+    $("#review-auto").checked = !!j.settings.review_auto; $("#review-after").value = j.settings.review_after_visits||1;
     $("#hello").textContent = owner ? "管理（オーナー）" : "顧客対応";
     $("#login").classList.add("hide"); $("#app").classList.remove("hide"); $("#nav").classList.remove("hide");
     SCH.base=weekStart(new Date()); SCH.sel=ymd(new Date());
